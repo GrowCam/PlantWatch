@@ -149,25 +149,10 @@
             <h3><span class="heading-emoji">🌡️</span>{{ tr('switchbot_settings') }}</h3>
           </summary>
           <small class="hint-text">{{ tr('switchbot_hint') }}</small>
-
-          <div id="switchbotScanArea">
-            <div id="switchbotCurrentMac" style="margin-bottom:0.5rem">
-              {% if app_settings.switchbot_mac %}
-                <small>✅ {{ app_settings.switchbot_mac }}</small>
-              {% else %}
-                <small class="hint-text">{{ tr('switchbot_not_set') }}</small>
-              {% endif %}
-            </div>
-            <button type="button" id="switchbotScanBtn" class="secondary small">
-              📡 {{ tr('switchbot_scan_btn') }}
-            </button>
-            <div id="switchbotScanStatus" style="margin-top:0.5rem;display:none">
-              <small class="hint-text" id="switchbotScanMsg"></small>
-            </div>
-            <div id="switchbotDeviceList" style="margin-top:0.75rem;flex-direction:column;gap:0.4rem;display:none"></div>
-          </div>
-
-          <label for="switchbotMac" style="margin-top:0.75rem">{{ tr('switchbot_mac') }}</label>
+          <button type="button" id="switchbotScanBtn" class="ghost small">📡 {{ tr('switchbot_scan_btn') }}</button>
+          <small class="hint-text" id="switchbotScanMsg" hidden></small>
+          <div class="btn-group" id="switchbotDeviceList" hidden></div>
+          <label for="switchbotMac">{{ tr('switchbot_mac') }}</label>
           <input type="text" id="switchbotMac" value="{{ app_settings.switchbot_mac }}" spellcheck="false" autocomplete="off" placeholder="AA:BB:CC:DD:EE:FF" />
           <label for="switchbotScanTimeout">{{ tr('switchbot_timeout') }}</label>
           <input type="number" id="switchbotScanTimeout" min="3" max="60" value="{{ app_settings.switchbot_scan_timeout }}" />
@@ -338,13 +323,12 @@
         // SwitchBot BLE scan
         document.getElementById("switchbotScanBtn")?.addEventListener("click", async () => {
           const btn = document.getElementById("switchbotScanBtn");
-          const statusDiv = document.getElementById("switchbotScanStatus");
           const msgEl = document.getElementById("switchbotScanMsg");
           const listDiv = document.getElementById("switchbotDeviceList");
           btn.disabled = true;
-          listDiv.style.display = "none";
+          listDiv.hidden = true;
           listDiv.innerHTML = "";
-          statusDiv.style.display = "block";
+          msgEl.hidden = false;
           msgEl.textContent = "{{ tr('switchbot_scanning') }}";
           try {
             const res = await fetch("/api/scan-switchbot");
@@ -355,19 +339,18 @@
               msgEl.textContent = "{{ tr('switchbot_no_devices') }}";
             } else {
               msgEl.textContent = "{{ tr('switchbot_found') }}";
-              listDiv.style.display = "flex";
+              listDiv.hidden = false;
               data.devices.forEach((d) => {
-                const btn2 = document.createElement("button");
-                btn2.type = "button";
-                btn2.className = "secondary small";
-                btn2.textContent = `${d.name}  —  ${d.address}`;
-                btn2.addEventListener("click", () => {
+                const deviceBtn = document.createElement("button");
+                deviceBtn.type = "button";
+                deviceBtn.className = "ghost small";
+                deviceBtn.textContent = `${d.name} — ${d.address}`;
+                deviceBtn.addEventListener("click", () => {
                   document.getElementById("switchbotMac").value = d.address;
-                  document.getElementById("switchbotCurrentMac").innerHTML = `<small>✅ ${d.address}</small>`;
-                  listDiv.style.display = "none";
-                  statusDiv.style.display = "none";
+                  listDiv.hidden = true;
+                  msgEl.textContent = `✅ ${d.address}`;
                 });
-                listDiv.appendChild(btn2);
+                listDiv.appendChild(deviceBtn);
               });
             }
           } catch {
