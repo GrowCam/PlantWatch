@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">💡</span>{{ tr('light_card_title') }}</h1>
+          <p>{{ tr('active_settings') }}</p>
+        </div>
+      </header>
+
+      <section class="grid climate-device-grid">
+        {% if ui_settings.light_enabled %}
+        <div class="card">
+          <h3><span class="heading-emoji">💡</span>{{ tr('light_card_title') }}</h3>
+          <p class="power-readout" id="lightPower">{{ tr('power_unknown') }}</p>
+          <div class="device-switch-row">
+            <span class="device-switch-indicator">O</span>
+            <input type="checkbox" id="lightSwitch" class="device-switch-input" aria-label="{{ tr('light_card_title') }}" />
+            <span class="device-switch-indicator">I</span>
+          </div>
+          <ul class="info-list compact-info-list">
+            <li><span>{{ tr('auto_mode_state') }}</span><strong id="lightCardAuto">{{ light_settings.enabled and tr('on') or tr('off') }}</strong></li>
+            <li><span>{{ tr('debug_state') }}</span><strong id="lightCardDebug">{{ light_settings.debug_notify and tr('on') or tr('off') }}</strong></li>
+            <li><span>{{ tr('lights_on_window') }}</span><strong id="lightCardWindow">{{ light_cycle_settings.lights_on_start }}–{{ light_cycle_settings.lights_on_end }}</strong></li>
+          </ul>
+        </div>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🕒</span>{{ tr('light_cycle_settings') }}</h3>
+          </summary>
+          <form id="lightCycleForm">
+            <label for="lightStart">{{ tr('lights_on_start') }}</label>
+            <input type="time" id="lightStart" value="{{ light_cycle_settings.lights_on_start }}" />
+            <label for="lightEnd">{{ tr('lights_on_end') }}</label>
+            <input type="time" id="lightEnd" value="{{ light_cycle_settings.lights_on_end }}" />
+            <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+          </form>
+        </details>
+
+        <details class="card debug-card">
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🎛️</span>{{ tr('light_settings') }}</h3>
+          </summary>
+          <form id="lightDefaultsForm">
+            <label class="toggle" for="lightEnabledAutomation">
+              <span>{{ tr('auto_enabled') }}</span>
+              <input type="checkbox" id="lightEnabledAutomation" {% if light_settings.enabled %}checked{% endif %} />
+            </label>
+            <label class="toggle" for="lightDebugNotify">
+              <span>{{ tr('debug_notify') }}</span>
+              <input type="checkbox" id="lightDebugNotify" {% if light_settings.debug_notify %}checked{% endif %} />
+            </label>
+            <label class="toggle" for="lightDebugCardEnabled">
+              <span>{{ tr('light_debug_card_enabled') }}</span>
+              <input type="checkbox" id="lightDebugCardEnabled" {% if ui_settings.light_debug_card_enabled %}checked{% endif %} />
+            </label>
+            <label for="lightControlInterval">{{ tr('control_interval') }}</label>
+            <input type="number" id="lightControlInterval" min="15" step="15" value="{{ light_settings.control_interval_seconds }}" />
+            <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+          </form>
+        </details>
+
+        {% if ui_settings.light_debug_card_enabled %}
+        <details class="card debug-card">
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🧠</span>{{ tr('light_debug') }}</h3>
+          </summary>
+          <ul class="info-list">
+            <li><span>{{ tr('plug_state') }}</span><strong id="lightDebugState">–</strong></li>
+            <li><span>{{ tr('plug_power') }}</span><strong id="lightDebugPower">–</strong></li>
+            <li><span>{{ tr('lights_on_window') }}</span><strong id="lightDebugWindow">–</strong></li>
+            <li><span>{{ tr('last_decision') }}</span><strong id="lightDebugReason">–</strong></li>
+            <li><span>{{ tr('last_command') }}</span><strong id="lightDebugCommand">–</strong></li>
+            <li><span>{{ tr('command_ack') }}</span><strong id="lightDebugAck">–</strong></li>
+          </ul>
+        </details>
+        {% endif %}
+        {% endif %}
+      </section>
+{% endblock %}
+{% block extra_scripts %}
+    <script src="{{ url_for('static', filename='js/light.js') }}" defer></script>
+{% endblock %}

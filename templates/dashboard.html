@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block extra_head %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+      <header class="page-header">
+        <div class="header-title">
+          <h1>{{ tr('nav_dashboard') }}</h1>
+          <span class="status-dot" id="syncStatus" title="{{ tr('dashboard_sync') }}">●</span>
+        </div>
+      </header>
+
+      <section class="grid stats" id="stats">
+        <div class="card">
+          <div class="card-icon">📆</div>
+          <h3>{{ tr('dashboard_status') }}</h3>
+          <div class="phase-info">
+            <div class="metric-card">
+              <div>
+                <span>{{ tr('dashboard_phase') }}</span>
+                <strong class="phase-chip" id="phaseLabel">–</strong>
+              </div>
+            </div>
+            <div class="metric-card vertical">
+              <div>
+                <span>{{ tr('dashboard_days') }}</span>
+                <strong id="phaseDays">–</strong>
+              </div>
+              <div>
+                <span>{{ tr('dashboard_weeks') }}</span>
+                <strong id="phaseWeek">–</strong>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="card">
+          <div class="card-icon">💧</div>
+          <h3>{{ tr('last_watering') }}</h3>
+          <p class="value" id="lastWatering">–</p>
+        </div>
+        <div class="card">
+          <div class="card-icon">🌱</div>
+          <h3>{{ tr('start_date') }}</h3>
+          <p class="value" id="startDate">–</p>
+          <small>{{ tr('sprout') }}: <span id="sproutDate">–</span></small>
+        </div>
+        <div class="card climate-mini">
+          <div class="card-icon">🌡️</div>
+          <h3>{{ tr('climate_values') }}</h3>
+          <div class="live-metrics metric-stack">
+            <div class="metric-inline">
+              <span class="icon-chip">🌡️</span>
+              <div>
+                <strong id="liveTemp">–</strong><br>
+                <small>{{ tr('temperature') }}</small>
+              </div>
+            </div>
+            <div class="metric-inline">
+              <span class="icon-chip">💧</span>
+              <div>
+                <strong id="liveHum">–</strong><br>
+                <small>{{ tr('humidity') }}</small>
+              </div>
+            </div>
+            <div class="metric-inline">
+              <span class="icon-chip">📊</span>
+              <div>
+                <strong id="liveVpd">–</strong><br>
+                <small>{{ tr('vpd') }}</small>
+              </div>
+            </div>
+          </div>
+          <small>{{ tr('recorded_at') }}: <span id="liveSensorTs">–</span></small>
+          <small>{{ tr('optimal') }}: <span id="liveVpdTarget">–</span></small>
+        </div>
+        <div class="card">
+          <div class="card-icon">🌸</div>
+          <h3>{{ tr('flower') }}</h3>
+          <p class="value" id="flowerDate">–</p>
+          <div class="flower-info metrics-grid" id="flowerStats" hidden>
+            <div class="metric-card">
+              <span class="icon-chip">🌸</span>
+              <div>
+                <span>{{ tr('flower_day') }}</span>
+                <strong id="flowerDay">–</strong>
+              </div>
+            </div>
+            <div class="metric-card">
+              <span class="icon-chip">🌼</span>
+              <div>
+                <span>{{ tr('flower_week') }}</span>
+                <strong id="flowerWeek">–</strong>
+              </div>
+            </div>
+          </div>
+          <div class="card-actions">
+            <button class="ghost small" data-action="flower">{{ tr('flower_start') }}</button>
+            <button class="ghost small danger" data-action="flower_reset">{{ tr('reset') }}</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="grid media-top">
+        <div class="card large photo-card">
+          <div class="card-header">
+            <div>
+              <h3>{{ tr('latest_photo') }}</h3>
+            </div>
+          </div>
+          <div class="photo-wrapper">
+            <img id="photoPreview" src="" alt="{{ tr('latest_photo') }}" loading="lazy" />
+          </div>
+          <div class="photo-timestamp-row">
+            <span class="badge neutral" id="photoTimestamp">–</span>
+          </div>
+          <button class="primary small" data-action="photo">📸 {{ tr('new_photo') }}</button>
+        </div>
+        <div class="card list info-card">
+          <div class="card-header">
+            <h3>{{ tr('grow_info') }}</h3>
+          </div>
+          <ul id="infoList" class="info-list"></ul>
+        </div>
+      </section>
+
+      <section class="grid media" id="media">
+        <div class="card climate-card climate-expanded">
+          <div class="card-header">
+            <div>
+              <h3>{{ tr('climate') }}</h3>
+              <small>{{ tr('climate_chart_title') }}</small>
+            </div>
+            <div class="tab-group" id="sensorTabs">
+              <button class="tab" data-range="6h">6h</button>
+              <button class="tab active" data-range="24h">24h</button>
+              <button class="tab" data-range="72h">72h</button>
+              <button class="tab" data-range="168h">7d</button>
+              <button class="tab" data-range="all">{{ tr('all') }}</button>
+            </div>
+          </div>
+          <div class="resolution-controls">
+            <label for="sensorStart">{{ tr('from') }}</label>
+            <input type="datetime-local" id="sensorStart" />
+            <label for="sensorEnd">{{ tr('to') }}</label>
+            <input type="datetime-local" id="sensorEnd" />
+            <button type="button" class="ghost small" id="sensorCustomApply">{{ tr('apply') }}</button>
+          </div>
+          <button class="primary small" data-action="temp">🌡️ {{ tr('sensor_refresh') }}</button>
+          <canvas id="sensorChart" height="220"></canvas>
+          <div class="climate-stats">
+            <div>
+              <span>{{ tr('min') }}</span>
+              <strong id="tempMin">–</strong>
+            </div>
+            <div>
+              <span>{{ tr('median') }}</span>
+              <strong id="tempMedian">–</strong>
+            </div>
+            <div>
+              <span>{{ tr('max') }}</span>
+              <strong id="tempMax">–</strong>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div class="image-lightbox" id="imageLightbox" hidden>
+        <button type="button" class="image-lightbox-close" id="imageLightboxClose" aria-label="{{ tr('close') if tr('close') != 'close' else 'Close' }}">✕</button>
+        <img id="imageLightboxImg" src="" alt="{{ tr('latest_photo') }}" />
+      </div>
+{% endblock %}
+{% block extra_scripts %}
+    <script src="{{ url_for('static', filename='js/dashboard.js') }}" defer></script>
+{% endblock %}

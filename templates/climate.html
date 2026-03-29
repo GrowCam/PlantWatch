@@ -1,0 +1,468 @@
+{% extends "base.html" %}
+{% block extra_head %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">🌡️</span>{{ tr('climate_overview') }}</h1>
+          {% if latest_sensor %}
+          <div class="card climate-mini">
+            <h3><span class="heading-emoji">🕒</span>{{ tr('latest_reading') }}</h3>
+            <div class="live-metrics">
+              <div>
+                <span class="icon-chip">🌡️</span>
+                <strong>{{ format_temp(latest_sensor.temperature) }}</strong>
+              </div>
+              <div>
+                <span class="icon-chip">💧</span>
+                <strong>{{ '%.1f'|format(latest_sensor.humidity) }}%</strong>
+              </div>
+              <div>
+                <span class="icon-chip">📊</span>
+                <strong>{{ latest_sensor.vpd is not none and ('%.2f'|format(latest_sensor.vpd)) ~ ' kPa' or '–' }}</strong>
+              </div>
+            </div>
+            <small>{{ tr('reading_time') }}: {{ format_local_datetime(latest_sensor.raw_timestamp or latest_sensor.timestamp) }}</small>
+            {% if vpd_target %}
+            <small>Optimal: {{ vpd_target.min }} – {{ vpd_target.max }} kPa ({{ vpd_target.label }})</small>
+            {% endif %}
+          </div>
+          {% else %}
+          <p>{{ tr('no_sensor_values') }}</p>
+          {% endif %}
+        </div>
+      </header>
+
+      <section class="card climate-card climate-expanded">
+        <div class="card-header">
+          <div>
+            <h3><span class="heading-emoji">📈</span>{{ tr('climate_chart_title') }}</h3>
+          </div>
+          <div class="tab-group" id="climateRangeTabs">
+            <button class="tab" data-range="6h">6h</button>
+            <button class="tab active" data-range="24h">24h</button>
+            <button class="tab" data-range="72h">72h</button>
+            <button class="tab" data-range="168h">7d</button>
+            <button class="tab" data-range="all">{{ tr('all') }}</button>
+          </div>
+        </div>
+        <div class="resolution-controls">
+          <label for="resolutionSelect">{{ tr('display_mode') }}</label>
+          <select id="resolutionSelect">
+            <option value="raw" selected>{{ tr('original') }}</option>
+            <option value="smooth">{{ tr('smoothed') }}</option>
+            <option value="delta">{{ tr('delta') }}</option>
+          </select>
+        </div>
+        <div class="resolution-controls">
+          <label for="climateStart">{{ tr('from') }}</label>
+          <input type="datetime-local" id="climateStart" />
+          <label for="climateEnd">{{ tr('to') }}</label>
+          <input type="datetime-local" id="climateEnd" />
+          <button type="button" class="ghost small" id="climateCustomApply">{{ tr('apply') }}</button>
+        </div>
+        <canvas id="climateChart" height="320"></canvas>
+      </section>
+
+      <section class="grid climate-summary-grid">
+        <div class="card stat-card stat-card-compact">
+          <h3><span class="heading-emoji">🗓️</span>{{ tr('climate_24h') }}</h3>
+          {% if stats_24h %}
+          <ul class="info-list">
+            <li>
+              <div class="icon-chip">🌡️</div>
+              <span>{{ tr('temp_avg') }}</span>
+              <strong>{{ format_temp(stats_24h.temp_avg) }}</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬆️</div>
+              <span>{{ tr('temp_max') }}</span>
+              <strong>{{ format_temp(stats_24h.temp_max) }}</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬇️</div>
+              <span>{{ tr('temp_min') }}</span>
+              <strong>{{ format_temp(stats_24h.temp_min) }}</strong>
+            </li>
+            <li>
+              <div class="icon-chip">💧</div>
+              <span>{{ tr('hum_avg') }}</span>
+              <strong>{{ stats_24h.hum_avg }}%</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬆️</div>
+              <span>{{ tr('hum_max') }}</span>
+              <strong>{{ stats_24h.hum_max }}%</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬇️</div>
+              <span>{{ tr('hum_min') }}</span>
+              <strong>{{ stats_24h.hum_min }}%</strong>
+            </li>
+          </ul>
+          {% else %}
+          <p>{{ tr('no_data') }}</p>
+          {% endif %}
+        </div>
+        <div class="card stat-card stat-card-compact">
+          <h3><span class="heading-emoji">📆</span>{{ tr('climate_7d') }}</h3>
+          {% if stats_7d %}
+          <ul class="info-list">
+            <li>
+              <div class="icon-chip">🌡️</div>
+              <span>{{ tr('temp_avg') }}</span>
+              <strong>{{ format_temp(stats_7d.temp_avg) }}</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬆️</div>
+              <span>{{ tr('temp_max') }}</span>
+              <strong>{{ format_temp(stats_7d.temp_max) }}</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬇️</div>
+              <span>{{ tr('temp_min') }}</span>
+              <strong>{{ format_temp(stats_7d.temp_min) }}</strong>
+            </li>
+            <li>
+              <div class="icon-chip">💧</div>
+              <span>{{ tr('hum_avg') }}</span>
+              <strong>{{ stats_7d.hum_avg }}%</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬆️</div>
+              <span>{{ tr('hum_max') }}</span>
+              <strong>{{ stats_7d.hum_max }}%</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⬇️</div>
+              <span>{{ tr('hum_min') }}</span>
+              <strong>{{ stats_7d.hum_min }}%</strong>
+            </li>
+          </ul>
+          {% else %}
+          <p>{{ tr('no_data') }}</p>
+          {% endif %}
+        </div>
+      </section>
+
+      <section class="grid climate-device-grid">
+        {% if ui_settings.heater_enabled %}
+        <div class="card">
+          <h3><span class="heading-emoji">🔥</span>{{ tr('heater_card_title') }}</h3>
+          <p class="power-readout" id="dehumPower">{{ tr('power_unknown') }}</p>
+          <div class="device-switch-row">
+            <span class="device-switch-indicator">O</span>
+            <input type="checkbox" id="dehumSwitch" class="device-switch-input" aria-label="{{ tr('heater_card_title') }}" />
+            <span class="device-switch-indicator">I</span>
+          </div>
+          <ul class="info-list compact-info-list">
+            <li><span>{{ tr('auto_mode_state') }}</span><strong id="heaterCardAuto">{{ heater_settings.enabled and tr('on') or tr('off') }}</strong></li>
+            <li><span>{{ tr('debug_state') }}</span><strong id="heaterCardDebug">{{ heater_settings.debug_notify and tr('on') or tr('off') }}</strong></li>
+            <li><span>{{ tr('day_night_targets') }}</span><strong id="heaterCardTargets">{{ heater_settings.day_target_c }}°C / {{ heater_settings.night_target_c }}°C</strong></li>
+            <li><span>{{ tr('day_window') }}</span><strong id="heaterCardWindow">{{ dashboard.light_cycle.lights_on_start }}–{{ dashboard.light_cycle.lights_on_end }}</strong></li>
+          </ul>
+          <small class="muted">{{ tr('heater_schedule_copy') }}</small>
+        </div>
+        {% endif %}
+
+        {% if ui_settings.exhaust_enabled %}
+        <div class="card">
+          <h3><span class="heading-emoji">🌬️</span>{{ tr('exhaust_card_title') }}</h3>
+          <p class="power-readout" id="exhaustPower">{{ tr('power_unknown') }}</p>
+          <div class="device-switch-row">
+            <span class="device-switch-indicator">O</span>
+            <input type="checkbox" id="exhaustSwitch" class="device-switch-input" aria-label="{{ tr('exhaust_card_title') }}" />
+            <span class="device-switch-indicator">I</span>
+          </div>
+          <ul class="info-list compact-info-list">
+            <li><span>{{ tr('auto_mode_state') }}</span><strong id="exhaustCardAuto">{{ exhaust_settings.enabled and tr('on') or tr('off') }}</strong></li>
+            <li><span>{{ tr('debug_state') }}</span><strong id="exhaustCardDebug">{{ exhaust_settings.debug_notify and tr('on') or tr('off') }}</strong></li>
+            <li><span>{{ tr('rh_band') }}</span><strong id="exhaustCardRh">{{ exhaust_settings.rh_turn_on_above }}% / {{ exhaust_settings.rh_turn_off_below }}%</strong></li>
+            <li><span>{{ tr('temp_band') }}</span><strong id="exhaustCardTemp">{{ exhaust_settings.temp_force_on_above }}°C / {{ exhaust_settings.temp_allow_off_below }}°C</strong></li>
+          </ul>
+          <small class="muted">{{ tr('exhaust_schedule_copy') }}</small>
+        </div>
+        {% endif %}
+
+        {% if ui_settings.dehumidifier_enabled %}
+        <div class="card">
+          <h3><span class="heading-emoji">💨</span>{{ tr('dehumidifier_card_title') }}</h3>
+          <p class="power-readout" id="dehumidifierPower">{{ tr('power_unknown') }}</p>
+          <div class="device-switch-row">
+            <span class="device-switch-indicator">O</span>
+            <input type="checkbox" id="dehumidifierSwitch" class="device-switch-input" aria-label="{{ tr('dehumidifier_card_title') }}" />
+            <span class="device-switch-indicator">I</span>
+          </div>
+        </div>
+        {% endif %}
+
+        {% if ui_settings.humidifier_enabled %}
+        <div class="card">
+          <h3><span class="heading-emoji">💧</span>{{ tr('humidifier_card_title') }}</h3>
+          <p class="power-readout" id="humidifierPower">{{ tr('power_unknown') }}</p>
+          <div class="device-switch-row">
+            <span class="device-switch-indicator">O</span>
+            <input type="checkbox" id="humidifierSwitch" class="device-switch-input" aria-label="{{ tr('humidifier_card_title') }}" />
+            <span class="device-switch-indicator">I</span>
+          </div>
+        </div>
+        {% endif %}
+      </section>
+
+      {% set humidity_devices_enabled = ui_settings.dehumidifier_enabled or ui_settings.humidifier_enabled %}
+      {% set humidity_has_exhaust = ui_settings.exhaust_enabled %}
+      <section class="grid climate-config-grid">
+        {% if ui_settings.heater_enabled %}
+        <details class="card debug-card">
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🎛️</span>{{ tr('heater_settings') }}</h3>
+          </summary>
+          <form id="heaterDefaultsForm">
+            <label class="toggle" for="heaterEnabled">
+              <span>{{ tr('auto_enabled') }}</span>
+              <input type="checkbox" id="heaterEnabled" {% if heater_settings.enabled %}checked{% endif %} />
+            </label>
+            <label class="toggle" for="heaterDebugNotify">
+              <span>{{ tr('debug_notify') }}</span>
+              <input type="checkbox" id="heaterDebugNotify" {% if heater_settings.debug_notify %}checked{% endif %} />
+            </label>
+            <label class="toggle" for="heaterDebugCardEnabled">
+              <span>{{ tr('heater_debug_card_enabled') }}</span>
+              <input type="checkbox" id="heaterDebugCardEnabled" {% if ui_settings.heater_debug_card_enabled %}checked{% endif %} />
+            </label>
+            <label for="heaterDayTarget">{{ tr('day_target') }}</label>
+            <div class="slider-field">
+              <input type="range" id="heaterDayTarget" min="5" max="35" step="0.1" value="{{ heater_settings.day_target_c }}" data-slider-unit="°C" data-slider-digits="1" />
+              <input type="number" id="heaterDayTargetNumber" min="5" max="35" step="0.1" value="{{ heater_settings.day_target_c }}" data-slider-number-for="heaterDayTarget" />
+            </div>
+            <label for="heaterNightTarget">{{ tr('night_target') }}</label>
+            <div class="slider-field">
+              <input type="range" id="heaterNightTarget" min="5" max="35" step="0.1" value="{{ heater_settings.night_target_c }}" data-slider-unit="°C" data-slider-digits="1" />
+              <input type="number" id="heaterNightTargetNumber" min="5" max="35" step="0.1" value="{{ heater_settings.night_target_c }}" data-slider-number-for="heaterNightTarget" />
+            </div>
+            <label for="heaterOnOffset">{{ tr('on_below') }}</label>
+            <input type="number" id="heaterOnOffset" min="0.05" max="5" step="0.05" value="{{ heater_settings.on_below_offset_c }}" />
+            <label for="heaterOffOffset">{{ tr('off_above') }}</label>
+            <input type="number" id="heaterOffOffset" min="0.05" max="5" step="0.05" value="{{ heater_settings.off_above_offset_c }}" />
+            <label for="heaterMinOn">{{ tr('min_on') }}</label>
+            <input type="number" id="heaterMinOn" min="60" step="30" value="{{ heater_settings.min_on_seconds }}" />
+            <label for="heaterMinOff">{{ tr('min_off') }}</label>
+            <input type="number" id="heaterMinOff" min="60" step="30" value="{{ heater_settings.min_off_seconds }}" />
+            <label for="heaterSensorAge">{{ tr('max_sensor_age') }}</label>
+            <input type="number" id="heaterSensorAge" min="300" step="60" value="{{ heater_settings.sensor_max_age_seconds }}" />
+            <label for="heaterControlInterval">{{ tr('control_interval') }}</label>
+            <input type="number" id="heaterControlInterval" min="15" step="15" value="{{ heater_settings.control_interval_seconds }}" />
+            <label for="heaterMedianSamples">{{ tr('median_samples') }}</label>
+            <input type="number" id="heaterMedianSamples" min="1" max="9" step="1" value="{{ heater_settings.sensor_median_samples }}" />
+            <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+          </form>
+        </details>
+        {% endif %}
+
+        {% if humidity_devices_enabled or humidity_has_exhaust %}
+        <details class="card debug-card">
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">💧</span>{{ humidity_devices_enabled and tr('humidity_settings') or tr('exhaust_settings') }}</h3>
+          </summary>
+          <form id="humidityDefaultsForm">
+            <label class="toggle" for="humidityEnabled">
+              <span>{{ tr('auto_enabled') }}</span>
+              <input type="checkbox" id="humidityEnabled" {% if (humidity_settings.control_method == 'exhaust' and exhaust_settings.enabled) or (humidity_settings.control_method != 'exhaust' and humidity_settings.enabled) %}checked{% endif %} />
+            </label>
+            <label class="toggle" for="humidityDebugNotify">
+              <span>{{ tr('debug_notify') }}</span>
+              <input type="checkbox" id="humidityDebugNotify" {% if (humidity_settings.control_method == 'exhaust' and exhaust_settings.debug_notify) or (humidity_settings.control_method != 'exhaust' and humidity_settings.debug_notify) %}checked{% endif %} />
+            </label>
+            {% if humidity_has_exhaust %}
+            <label class="toggle" for="exhaustDebugCardEnabled">
+              <span>{{ tr('exhaust_debug_card_enabled') }}</span>
+              <input type="checkbox" id="exhaustDebugCardEnabled" {% if ui_settings.exhaust_debug_card_enabled %}checked{% endif %} />
+            </label>
+            {% endif %}
+            {% if humidity_devices_enabled and humidity_has_exhaust %}
+            <label for="humidityControlMethod">{{ tr('humidity_control_method') }}</label>
+            <select id="humidityControlMethod">
+              <option value="devices" {% if humidity_settings.control_method == 'devices' %}selected{% endif %}>{{ tr('humidity_via_devices') }}</option>
+              <option value="exhaust" {% if humidity_settings.control_method == 'exhaust' %}selected{% endif %}>{{ tr('humidity_via_exhaust') }}</option>
+            </select>
+            {% endif %}
+            <div id="humidityExhaustModeGroup" {% if humidity_settings.control_method != 'exhaust' and not (humidity_has_exhaust and not humidity_devices_enabled) %}hidden{% endif %}>
+              <label for="exhaustControlMode">{{ tr('exhaust_control_mode') }}</label>
+              <select id="exhaustControlMode">
+                <option value="sensor" {% if humidity_settings.exhaust_control_mode == 'sensor' %}selected{% endif %}>{{ tr('mode_sensor') }}</option>
+                <option value="cycle" {% if humidity_settings.exhaust_control_mode == 'cycle' %}selected{% endif %}>{{ tr('mode_cycle') }}</option>
+              </select>
+            </div>
+            <div id="humidityDeviceThresholdGroup" {% if not humidity_devices_enabled or humidity_settings.control_method == 'exhaust' %}hidden{% endif %}>
+              <label for="humidityUpper">{{ tr('rh_upper_threshold') }}</label>
+              <div class="slider-field">
+                <input type="range" id="humidityUpper" min="20" max="100" step="0.1" value="{{ humidity_settings.rh_upper_threshold }}" data-slider-unit="%" data-slider-digits="1" />
+                <input type="number" id="humidityUpperNumber" min="20" max="100" step="0.1" value="{{ humidity_settings.rh_upper_threshold }}" data-slider-number-for="humidityUpper" />
+              </div>
+              <label for="humidityLower">{{ tr('rh_lower_threshold') }}</label>
+              <div class="slider-field">
+                <input type="range" id="humidityLower" min="20" max="100" step="0.1" value="{{ humidity_settings.rh_lower_threshold }}" data-slider-unit="%" data-slider-digits="1" />
+                <input type="number" id="humidityLowerNumber" min="20" max="100" step="0.1" value="{{ humidity_settings.rh_lower_threshold }}" data-slider-number-for="humidityLower" />
+              </div>
+            </div>
+            <div id="exhaustSensorThresholdGroup" {% if not humidity_has_exhaust or (humidity_devices_enabled and humidity_settings.control_method != 'exhaust') or humidity_settings.exhaust_control_mode == 'cycle' %}hidden{% endif %}>
+              <label for="exhaustRhOn">{{ tr('rh_turn_on_above') }}</label>
+              <div class="slider-field">
+                <input type="range" id="exhaustRhOn" min="30" max="100" step="0.1" value="{{ exhaust_settings.rh_turn_on_above }}" data-slider-unit="%" data-slider-digits="1" />
+                <input type="number" id="exhaustRhOnNumber" min="30" max="100" step="0.1" value="{{ exhaust_settings.rh_turn_on_above }}" data-slider-number-for="exhaustRhOn" />
+              </div>
+              <label for="exhaustRhOff">{{ tr('rh_turn_off_below') }}</label>
+              <div class="slider-field">
+                <input type="range" id="exhaustRhOff" min="20" max="100" step="0.1" value="{{ exhaust_settings.rh_turn_off_below }}" data-slider-unit="%" data-slider-digits="1" />
+                <input type="number" id="exhaustRhOffNumber" min="20" max="100" step="0.1" value="{{ exhaust_settings.rh_turn_off_below }}" data-slider-number-for="exhaustRhOff" />
+              </div>
+              <label for="exhaustTempOn">{{ tr('temp_force_on_above') }}</label>
+              <div class="slider-field">
+                <input type="range" id="exhaustTempOn" min="5" max="40" step="0.1" value="{{ exhaust_settings.temp_force_on_above }}" data-slider-unit="°C" data-slider-digits="1" />
+                <input type="number" id="exhaustTempOnNumber" min="5" max="40" step="0.1" value="{{ exhaust_settings.temp_force_on_above }}" data-slider-number-for="exhaustTempOn" />
+              </div>
+              <label for="exhaustTempOff">{{ tr('temp_allow_off_below') }}</label>
+              <div class="slider-field">
+                <input type="range" id="exhaustTempOff" min="5" max="40" step="0.1" value="{{ exhaust_settings.temp_allow_off_below }}" data-slider-unit="°C" data-slider-digits="1" />
+                <input type="number" id="exhaustTempOffNumber" min="5" max="40" step="0.1" value="{{ exhaust_settings.temp_allow_off_below }}" data-slider-number-for="exhaustTempOff" />
+              </div>
+            </div>
+            <div id="humidityCycleGroup" {% if not humidity_has_exhaust or humidity_settings.control_method != 'exhaust' or humidity_settings.exhaust_control_mode != 'cycle' %}hidden{% endif %}>
+              <label for="humidityCycleOn">{{ tr('cycle_on_seconds') }}</label>
+              <input type="number" id="humidityCycleOn" min="60" step="30" value="{{ humidity_settings.cycle_on_seconds }}" />
+              <label for="humidityCycleOff">{{ tr('cycle_off_seconds') }}</label>
+              <input type="number" id="humidityCycleOff" min="60" step="30" value="{{ humidity_settings.cycle_off_seconds }}" />
+            </div>
+            <div id="humidityDeviceTimingGroup" {% if not humidity_devices_enabled or humidity_settings.control_method == 'exhaust' %}hidden{% endif %}>
+              <label for="humidityMinOn">{{ tr('min_on') }}</label>
+              <input type="number" id="humidityMinOn" min="60" step="30" value="{{ humidity_settings.min_on_seconds }}" />
+              <label for="humidityMinOff">{{ tr('min_off') }}</label>
+              <input type="number" id="humidityMinOff" min="60" step="30" value="{{ humidity_settings.min_off_seconds }}" />
+              <label for="humiditySensorAge">{{ tr('max_sensor_age') }}</label>
+              <input type="number" id="humiditySensorAge" min="60" step="30" value="{{ humidity_settings.sensor_max_age_seconds }}" />
+              <label for="humidityControlInterval">{{ tr('control_interval') }}</label>
+              <input type="number" id="humidityControlInterval" min="15" step="15" value="{{ humidity_settings.control_interval_seconds }}" />
+              <label for="humidityMedianSamples">{{ tr('median_samples') }}</label>
+              <input type="number" id="humidityMedianSamples" min="1" max="9" step="1" value="{{ humidity_settings.sensor_median_samples }}" />
+            </div>
+            <div id="exhaustTimingGroup" {% if not humidity_has_exhaust or (humidity_devices_enabled and humidity_settings.control_method != 'exhaust') %}hidden{% endif %}>
+              <label for="exhaustMinOn">{{ tr('min_on') }}</label>
+              <input type="number" id="exhaustMinOn" min="60" step="30" value="{{ exhaust_settings.min_on_seconds }}" />
+              <label for="exhaustMinOff">{{ tr('min_off') }}</label>
+              <input type="number" id="exhaustMinOff" min="60" step="30" value="{{ exhaust_settings.min_off_seconds }}" />
+              <label for="exhaustMaxOffRefresh">{{ tr('max_off_time_before_refresh') }}</label>
+              <input type="number" id="exhaustMaxOffRefresh" min="300" step="60" value="{{ exhaust_settings.max_off_time_before_refresh }}" />
+              <label for="exhaustForcedRefresh">{{ tr('forced_refresh_run_time') }}</label>
+              <input type="number" id="exhaustForcedRefresh" min="60" step="30" value="{{ exhaust_settings.forced_refresh_run_time }}" />
+              <label for="exhaustSensorAge">{{ tr('max_sensor_age') }}</label>
+              <input type="number" id="exhaustSensorAge" min="60" step="30" value="{{ exhaust_settings.sensor_max_age_seconds }}" />
+              <label for="exhaustControlInterval">{{ tr('control_interval') }}</label>
+              <input type="number" id="exhaustControlInterval" min="15" step="15" value="{{ exhaust_settings.control_interval_seconds }}" />
+              <label for="exhaustMedianSamples">{{ tr('median_samples') }}</label>
+              <input type="number" id="exhaustMedianSamples" min="1" max="9" step="1" value="{{ exhaust_settings.sensor_median_samples }}" />
+            </div>
+            <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+          </form>
+        </details>
+        {% endif %}
+      </section>
+
+      <section class="grid climate-debug-grid">
+        {% if ui_settings.heater_enabled and ui_settings.heater_debug_card_enabled %}
+        <details class="card debug-card">
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🧠</span>{{ tr('heater_debug') }}</h3>
+          </summary>
+          <ul class="info-list" id="heaterDebugList">
+            <li>
+              <div class="icon-chip">🌡️</div>
+              <span>{{ tr('current_reading') }}</span>
+              <strong id="heaterDebugCurrent">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">📊</div>
+              <span>{{ tr('median') }}</span>
+              <strong id="heaterDebugMedian">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">🔌</div>
+              <span>{{ tr('plug_state') }}</span>
+              <strong id="heaterDebugState">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">⚡</div>
+              <span>{{ tr('plug_power') }}</span>
+              <strong id="heaterDebugPower">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">🕒</div>
+              <span>{{ tr('reading_time') }}</span>
+              <strong id="heaterDebugTime">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">🎯</div>
+              <span>{{ tr('target_thresholds') }}</span>
+              <strong id="heaterDebugThresholds">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">🧠</div>
+              <span>{{ tr('last_decision') }}</span>
+              <strong id="heaterDebugDecision">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">📤</div>
+              <span>{{ tr('last_command') }}</span>
+              <strong id="heaterDebugCommand">–</strong>
+            </li>
+            <li>
+              <div class="icon-chip">✅</div>
+              <span>{{ tr('command_ack') }}</span>
+              <strong id="heaterDebugAck">–</strong>
+            </li>
+          </ul>
+        </details>
+        {% endif %}
+
+        {% if ui_settings.exhaust_enabled and ui_settings.exhaust_debug_card_enabled %}
+        <details class="card debug-card">
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🧠</span>{{ tr('exhaust_debug') }}</h3>
+          </summary>
+          <ul class="info-list">
+            <li><div class="icon-chip">🌡️</div><span>{{ tr('current_reading') }}</span><strong id="exhaustDebugTemp">–</strong></li>
+            <li><div class="icon-chip">💧</div><span>{{ tr('humidity') }}</span><strong id="exhaustDebugRh">–</strong></li>
+            <li><div class="icon-chip">📊</div><span>{{ tr('median') }}</span><strong id="exhaustDebugMedian">–</strong></li>
+            <li><div class="icon-chip">🔌</div><span>{{ tr('plug_state') }}</span><strong id="exhaustDebugState">–</strong></li>
+            <li><div class="icon-chip">⚡</div><span>{{ tr('plug_power') }}</span><strong id="exhaustDebugPower">–</strong></li>
+            <li><div class="icon-chip">🕒</div><span>{{ tr('reading_time') }}</span><strong id="exhaustDebugTime">–</strong></li>
+            <li><div class="icon-chip">♻️</div><span>{{ tr('forced_refresh_active') }}</span><strong id="exhaustDebugRefresh">–</strong></li>
+            <li><div class="icon-chip">🧠</div><span>{{ tr('last_decision') }}</span><strong id="exhaustDebugReason">–</strong></li>
+            <li><div class="icon-chip">📌</div><span>{{ tr('last_change_reason') }}</span><strong id="exhaustDebugChangeReason">–</strong></li>
+            <li><div class="icon-chip">📤</div><span>{{ tr('last_command') }}</span><strong id="exhaustDebugCommand">–</strong></li>
+            <li><div class="icon-chip">✅</div><span>{{ tr('command_ack') }}</span><strong id="exhaustDebugAck">–</strong></li>
+          </ul>
+        </details>
+        {% endif %}
+
+        {% if ui_settings.dehumidifier_enabled or ui_settings.humidifier_enabled %}
+        <details class="card debug-card">
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🧠</span>{{ tr('humidity_debug') }}</h3>
+          </summary>
+          <ul class="info-list">
+            <li><span>{{ tr('humidity') }}</span><strong id="humidityDebugCurrent">–</strong></li>
+            <li><span>{{ tr('median') }}</span><strong id="humidityDebugMedian">–</strong></li>
+            <li><span>{{ tr('active_device') }}</span><strong id="humidityDebugActive">–</strong></li>
+            <li><span>{{ tr('reading_time') }}</span><strong id="humidityDebugTime">–</strong></li>
+            <li><span>{{ tr('last_decision') }}</span><strong id="humidityDebugReason">–</strong></li>
+            <li><span>{{ tr('last_change_reason') }}</span><strong id="humidityDebugChange">–</strong></li>
+            <li><span>{{ tr('humidity_band') }}</span><strong id="humidityDebugBand">–</strong></li>
+          </ul>
+        </details>
+        {% endif %}
+      </section>
+{% endblock %}
+{% block extra_scripts %}
+    <script src="{{ url_for('static', filename='js/climate.js') }}" defer></script>
+{% endblock %}

@@ -1,0 +1,76 @@
+{% extends "base.html" %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">💧</span>{{ tr('watering_title') }}</h1>
+          <p>{{ tr('last_saved') }}: {{ format_local_date(dashboard.grow.last_watering) }}</p>
+        </div>
+      </header>
+
+      <section class="grid watering-primary-grid">
+        <div class="card">
+          <h3><span class="heading-emoji">📝</span>{{ tr('save_watering') }}</h3>
+          <form id="waterForm">
+            <label for="waterDate">{{ tr('date') }}</label>
+            <input type="date" id="waterDate" name="waterDate" />
+            <button type="submit" class="primary">{{ tr('save') }}</button>
+          </form>
+          <div class="btn-group">
+            <button class="ghost" data-water-action="today">{{ tr('add_today') }}</button>
+            <button class="ghost" data-water-action="clear">{{ tr('clear_date') }}</button>
+          </div>
+        </div>
+        <div class="card">
+          <h3><span class="heading-emoji">💧</span>{{ tr('last_watering') }}</h3>
+          <p class="value" id="waterLastValue">{{ format_local_date(dashboard.grow.last_watering) }}</p>
+          <small id="waterDays">
+            {% if dashboard.stats.days_since_watering is not none %}
+              {{ tr('days_ago').format(days=dashboard.stats.days_since_watering) }}
+            {% else %}
+              –
+            {% endif %}
+          </small>
+        </div>
+      </section>
+
+      <section class="grid watering-secondary-grid">
+        {% if ui_settings.pump_enabled %}
+        <div class="card pump-card">
+          <h3><span class="heading-emoji">🚰</span>{{ tr('control_pump') }}</h3>
+          <p class="power-readout" id="pumpPower">{{ tr('power_unknown') }}</p>
+          <small class="muted" id="pumpCountdown" hidden>–</small>
+          <div class="device-switch-row">
+            <span class="device-switch-indicator">O</span>
+            <input type="checkbox" id="pumpSwitch" class="device-switch-input" aria-label="{{ tr('control_pump') }}" />
+            <span class="device-switch-indicator">I</span>
+          </div>
+          <form id="pumpTimerForm">
+            <label for="pumpMinutes">{{ tr('runtime_minutes') }}</label>
+            <input
+              type="number"
+              id="pumpMinutes"
+              name="pumpMinutes"
+              min="0.1"
+              step="any"
+              placeholder="{{ tr('example_two') }}"
+            />
+            <button type="submit" class="primary">{{ tr('start_auto_off') }}</button>
+            <small>{{ tr('pump_auto_off_copy') }}</small>
+          </form>
+        </div>
+        {% endif %}
+        {% if ui_settings.water_sensor_enabled %}
+        <div class="card reservoir-card">
+          <h3><span class="heading-emoji">🛟</span>{{ tr('reservoir_sensor') }}</h3>
+          <div class="sensor-row">
+            <div>
+              <span class="sensor-state" id="waterLeakState">{{ tr('status_unknown') }}</span>
+            </div>
+          </div>
+        </div>
+        {% endif %}
+      </section>
+{% endblock %}
+{% block extra_scripts %}
+    <script src="{{ url_for('static', filename='js/watering.js') }}" defer></script>
+{% endblock %}

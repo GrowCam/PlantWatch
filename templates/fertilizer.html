@@ -1,0 +1,155 @@
+{% extends "base.html" %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">🧪</span>{{ tr('fertilizer_title') }}</h1>
+          <p>{{ tr('current_week_phase').format(week=dashboard.stats.current_week, phase=dashboard.stats.phase) }}</p>
+        </div>
+      </header>
+
+      <section class="grid stats">
+        <div class="card">
+          <h3><span class="heading-emoji">📊</span>{{ tr('current_dosage') }}</h3>
+          <ul class="info-list fertilizer-current-list" id="fertCurrentList">
+            {% for fert in dashboard.fertilizers %}
+            <li>
+              <div class="icon-chip">🧪</div>
+              <span>{{ fert.name }}</span>
+              <strong>{{ format_fertilizer_rate(fert.amount_per_l, fert.unit, 2) }} {{ display_fertilizer_rate_unit(fert.unit) }}</strong>
+              <div class="inline-actions">
+                <button type="button" class="ghost small" data-fert-edit="{{ fert.name }}">{{ tr('edit') }}</button>
+                <button type="button" class="ghost small danger" data-fert-delete="{{ fert.name }}">{{ tr('delete') }}</button>
+              </div>
+            </li>
+            {% else %}
+            <li>{{ tr('no_fertilizers') }}</li>
+            {% endfor %}
+          </ul>
+        </div>
+        <div class="card">
+          <h3><span class="heading-emoji">🧮</span>{{ tr('calculate_plan') }}</h3>
+          <form id="fertCalcForm">
+            <label for="liters">{{ tr('liters') }} ({{ volume_unit_label() }})</label>
+            <input type="number" id="liters" value="{{ format_volume(fert_defaults.liters, 2) }}" min="0.1" step="0.1" />
+            <label for="percent">{{ tr('percent') }}</label>
+            <input type="number" id="percent" value="{{ fert_defaults.percent }}" min="10" max="150" />
+            <div class="btn-group">
+              <button type="submit" class="primary">{{ tr('calculate') }}</button>
+              <button type="button" id="fertSaveDefault" class="ghost">{{ tr('save_default') }}</button>
+            </div>
+          </form>
+          <div id="fertCalcResult" class="fert-result">
+            <strong>{{ format_volume(fert_defaults.liters, 2) }} {{ volume_unit_label() }} @ {{ fert_defaults.percent }}%</strong><br>
+            {% if default_plan %}
+            <div>{{ tr('current_week_phase').format(week=default_plan.week, phase=default_plan.phase) }}</div>
+            <ul>
+              {% for line in default_plan.lines %}
+              <li>{{ line.name }}: {{ format_fertilizer_rate(line.amount_per_l, line.unit, 2) }} {{ display_fertilizer_rate_unit(line.unit) }} → {{ format_fertilizer_total(line.total_amount, line.unit, 2) }} {{ display_fertilizer_total_unit(line.unit) }}</li>
+              {% endfor %}
+            </ul>
+            {% for total in default_plan.totals %}
+            <strong>{{ tr('total') }}: {{ format_fertilizer_total(total.total_amount, total.unit, 2) }} {{ display_fertilizer_total_unit(total.unit) }}</strong>{% if not loop.last %}<br>{% endif %}
+            {% endfor %}
+            {% else %}
+            <p>{{ tr('no_fertilizers') }}</p>
+            {% endif %}
+          </div>
+        </div>
+      </section>
+
+      <section class="grid fert-section">
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">🗂️</span>{{ tr('week_overview') }}</h3>
+            <small>{{ tr('values_per_gallon') if ui_settings.measurement_system == 'imperial' else tr('values_per_l') }}</small>
+          </div>
+          <div class="table-scroll">
+            <table class="schema-table">
+              <thead>
+                <tr>
+                  <th>{{ tr('fertilizer') }}</th>
+                  <th>{{ tr('unit') }}</th>
+                  {% for week in fertilizer_weeks %}
+                  <th class="{% if week == highlight_week %}current-week{% endif %}">W{{ week }}</th>
+                  {% endfor %}
+                </tr>
+              </thead>
+              <tbody id="fertOverviewBody">
+                {% for fert in fertilizer_catalog %}
+                <tr>
+                  <td>{{ fert.name }}</td>
+                  <td>{{ display_fertilizer_rate_unit(fert.unit) }}</td>
+                  {% for week in fertilizer_weeks %}
+                  {% set value = fert.schedule.get(week|string) %}
+                  <td class="{% if week == highlight_week %}current-week{% endif %}">{{ value if value is not none else "–" }}</td>
+                  {% endfor %}
+                </tr>
+                {% else %}
+                <tr>
+                  <td colspan="{{ 2 + fertilizer_weeks|length }}">{{ tr('no_data_available') }}</td>
+                </tr>
+                {% endfor %}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="card" id="fertManageCard">
+          <div class="card-header">
+            <h3><span class="heading-emoji">🧰</span>{{ tr('manage_fertilizers') }}</h3>
+            <small>{{ tr('choose_fertilizer') }}</small>
+          </div>
+          <form id="fertManageForm" class="fert-manage-form">
+            <input type="hidden" id="fertOriginalName" />
+            <div class="form-grid form-grid-3">
+              <div>
+                <label for="fertName">{{ tr('fertilizer_name') }}</label>
+                <input type="text" id="fertName" maxlength="80" />
+              </div>
+              <div>
+                <label for="fertUnit">{{ tr('unit') }}</label>
+                <select id="fertUnit">
+                  <option value="ml/L">{{ display_fertilizer_rate_unit('ml/L') }}</option>
+                  <option value="g/L">{{ display_fertilizer_rate_unit('g/L') }}</option>
+                </select>
+              </div>
+              <div>
+                <label for="fertWeekCount">{{ tr('week_count') }}</label>
+                <input type="number" id="fertWeekCount" min="1" max="24" value="{{ fertilizer_weeks|length }}" />
+              </div>
+            </div>
+            <div class="fert-week-grid" id="fertWeekGrid">
+              {% for week in fertilizer_weeks %}
+              <label class="fert-week-field">
+                <span>{{ tr('week_label').format(week=week) }}</span>
+                <input type="number" data-week="{{ week }}" min="0" step="0.01" value="0" />
+              </label>
+              {% endfor %}
+            </div>
+            <div class="same-weeks-box">
+              <label class="toggle" for="fertSameAmount">
+                <span>{{ tr('same_amount_all_weeks') }}</span>
+                <input type="checkbox" id="fertSameAmount" />
+              </label>
+              <div id="fertSameAmountWrap" hidden>
+                <label for="fertSameAmountValue">{{ tr('same_amount_value') }}</label>
+                <input type="number" id="fertSameAmountValue" min="0" step="0.01" value="0" />
+              </div>
+            </div>
+            <div class="btn-group">
+              <button type="submit" class="primary">{{ tr('save_fertilizer') }}</button>
+              <button type="button" class="ghost" id="fertResetForm">{{ tr('new_fertilizer') }}</button>
+            </div>
+          </form>
+        </section>
+      </section>
+{% endblock %}
+{% block extra_scripts %}
+    <script>
+      window.FERTILIZER_WEEKS = {{ fertilizer_weeks|tojson }};
+      window.FERTILIZER_CATALOG = {{ fertilizer_catalog|tojson }};
+      window.CURRENT_FERT_WEEK = {{ dashboard.stats.current_week|tojson }};
+      window.HIGHLIGHT_FERT_WEEK = {{ highlight_week|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/fertilizer.js') }}" defer></script>
+{% endblock %}

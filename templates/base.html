@@ -1,0 +1,379 @@
+{% set current_page = active_page or "dashboard" %}
+{% from "_brand_logo.html" import brand_logo %}
+<!DOCTYPE html>
+<html lang="{{ ui_settings.language }}">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>PlantWatch</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" />
+    <link
+      rel="stylesheet"
+      href="{{ url_for('static', filename='css/dashboard.css') }}"
+    />
+    <script src="{{ url_for('static', filename='vendor/Sortable.min.js') }}" defer></script>
+    {% block extra_head %}{% endblock %}
+  </head>
+  <body data-theme="{{ ui_settings.appearance_theme }}" data-accent="{{ ui_settings.accent_theme }}" style="--accent: {{ ui_settings.accent_primary }}; --accent-2: {{ ui_settings.accent_secondary }};" class="compact-ui">
+    <div class="sidebar-backdrop" id="sidebarOverlay"></div>
+    <aside class="sidebar" id="sidebar">
+      <div class="sidebar-head">
+        <a class="brand" href="{{ logo_url }}" aria-label="Dashboard">
+          {{ brand_logo("brand-mark", "brandGradient", ui_settings.accent_primary, ui_settings.accent_secondary) }}
+          <div class="brand-copy">
+            <span>PlantWatch</span>
+            <small class="brand-subtitle">Apple Fritter</small>
+          </div>
+        </a>
+        <button id="sidebarClose" class="sidebar-close" aria-label="{{ tr('open_menu') }}">✕</button>
+      </div>
+      <nav>
+        {% for item in nav_items %}
+        <a href="{{ url_for(item.endpoint) }}" class="{% if current_page == item.id %}active{% endif %}"><span>{{ item.icon }}</span>{{ tr(item.label_key) }}</a>
+        {% endfor %}
+      </nav>
+    </aside>
+    <main class="content">
+      <div class="content-topbar" id="contentTopbar">
+        <div class="topbar-inner">
+          <a href="{{ logo_url }}" aria-label="Dashboard">{{ brand_logo("topbar-logo", "topbarBrandGradient", ui_settings.accent_primary, ui_settings.accent_secondary) }}</a>
+          <button id="sidebarInlineToggle" class="sidebar-toggle inline" aria-label="{{ tr('open_menu') }}">☰</button>
+          <div class="topbar-title">
+            <span class="topbar-label">{{ tr('nav_' ~ current_page) if current_page in ['dashboard', 'fertilizer', 'watering', 'climate', 'power', 'light', 'timelapse', 'settings'] else current_page|capitalize }}</span>
+          </div>
+          <button
+            type="button"
+            class="lei-btn"
+            data-layout-toggle
+            aria-pressed="false"
+            aria-label="{{ tr('edit_layout') }}"
+            title="{{ tr('edit_layout') }}"
+            data-label-edit="{{ tr('edit_layout') }}"
+            data-label-save="{{ tr('save_layout') }}"
+          >⠿</button>
+        </div>
+      </div>
+      <div class="page-toolbar">
+        <button
+          type="button"
+          class="layout-edit-toggle ghost small"
+          id="layoutEditToggle"
+          data-layout-toggle
+          aria-pressed="false"
+          data-label-edit="{{ tr('edit_layout') }}"
+          data-label-save="{{ tr('save_layout') }}"
+        ><span class="lei-icon">⠿</span><span class="lei-label"> {{ tr('edit_layout') }}</span></button>
+      </div>
+      <div class="layout-edit-banner" id="layoutEditBanner" aria-live="polite">⠿ {{ tr('edit_layout') }}</div>
+      {% block content %}{% endblock %}
+    </main>
+    <div class="toast" id="toast">{{ tr('saved') }}</div>
+    <script>
+      window.APP_LANG = "{{ ui_settings.language }}";
+      window.APP_SETTINGS = {{ ui_settings|tojson }};
+    </script>
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const inlineToggle = document.getElementById("sidebarInlineToggle");
+        const closeToggle = document.getElementById("sidebarClose");
+        const overlay = document.getElementById("sidebarOverlay");
+        const body = document.body;
+        const toggles = [inlineToggle].filter(Boolean);
+        const isMobile = () => window.matchMedia("(max-width: 900px)").matches;
+
+        const applyState = (hidden) => {
+          body.classList.toggle("sidebar-hidden", hidden);
+          body.classList.toggle("sidebar-open", !hidden);
+          if (overlay) overlay.classList.toggle("show", !hidden && isMobile());
+          toggles.forEach((btn) => btn.setAttribute("aria-expanded", (!hidden).toString()));
+        };
+
+        const savedRaw = localStorage.getItem("sidebarHidden");
+        const defaultHidden = savedRaw === null && isMobile();
+        const saved = savedRaw === "true";
+        // On desktop, always start open; on mobile, honor saved/default.
+        const startHidden = isMobile() ? (defaultHidden || saved) : false;
+        applyState(startHidden);
+        if (!isMobile()) {
+          localStorage.setItem("sidebarHidden", "false");
+        }
+
+        const setState = (hidden) => {
+          localStorage.setItem("sidebarHidden", hidden ? "true" : "false");
+          applyState(hidden);
+        };
+
+        toggles.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            setState(!document.body.classList.contains("sidebar-hidden"));
+          });
+        });
+        if (closeToggle) {
+          closeToggle.addEventListener("click", () => setState(true));
+        }
+        if (overlay) {
+          overlay.addEventListener("click", () => setState(true));
+        }
+        document.querySelectorAll(".sidebar nav a").forEach((link) => {
+          link.addEventListener("click", () => {
+            if (isMobile()) setState(true);
+          });
+        });
+        window.addEventListener("resize", () => {
+          const savedRawDynamic = localStorage.getItem("sidebarHidden");
+          const savedState = savedRawDynamic === "true";
+          if (!isMobile()) {
+            body.classList.remove("sidebar-hidden");
+            body.classList.add("sidebar-open");
+            if (overlay) overlay.classList.remove("show");
+          } else if (savedRawDynamic === null) {
+            applyState(true);
+          } else {
+            applyState(savedState);
+          }
+        });
+
+        const slugify = (value) => String(value || "")
+          .toLowerCase()
+          .trim()
+          .replace(/\s+/g, "-")
+          .replace(/[^a-z0-9\-_]/g, "")
+          .slice(0, 80);
+
+        const getToggleStorageKey = (path, source, index) => {
+          const keySource = source || `card-${index}`;
+          return `detailsOpen:${path}:${keySource}`;
+        };
+
+        document.querySelectorAll("details.card").forEach((details, index) => {
+          const summary = details.querySelector("summary");
+          const summaryText = summary?.textContent || "";
+          const keySource = details.id || details.dataset.toggleKey || slugify(summaryText) || `details-${index}`;
+          const storageKey = getToggleStorageKey(window.location.pathname, keySource, index);
+          const savedOpen = localStorage.getItem(storageKey);
+          if (savedOpen !== null) {
+            details.open = savedOpen === "true";
+          }
+          details.addEventListener("toggle", () => {
+            localStorage.setItem(storageKey, details.open ? "true" : "false");
+          });
+        });
+
+        document.querySelectorAll(".card").forEach((card, index) => {
+          if (card.tagName.toLowerCase() === "details") return;
+          if (card.classList.contains("metric-card")) return;
+          if (card.classList.contains("settings-save-card")) return;
+          if (card.dataset.toggleReady === "true") return;
+
+          const children = Array.from(card.children);
+          if (!children.length) return;
+
+          let headerNode = card.querySelector(":scope > .card-header");
+          let headerLabel = "";
+          const storageSource = card.id || card.dataset.toggleKey || "";
+
+          if (headerNode) {
+            headerLabel = headerNode.textContent || "";
+            headerNode.classList.add("card-toggle-header");
+          } else {
+            const titleNode = card.querySelector(":scope > h3");
+            const iconNode = card.querySelector(":scope > .card-icon");
+            const smallNode = card.querySelector(":scope > small");
+            headerNode = document.createElement("div");
+            headerNode.className = "card-header card-toggle-header";
+
+            if (iconNode) headerNode.appendChild(iconNode);
+            if (titleNode) {
+              headerLabel = titleNode.textContent || "";
+              headerNode.appendChild(titleNode);
+            } else if (smallNode) {
+              headerLabel = smallNode.textContent || "";
+            } else {
+              headerLabel = card.textContent || `card-${index}`;
+            }
+            card.prepend(headerNode);
+          }
+
+          const toggleBtn = document.createElement("button");
+          toggleBtn.type = "button";
+          toggleBtn.className = "card-toggle-button";
+          toggleBtn.setAttribute("aria-expanded", "true");
+          toggleBtn.setAttribute("aria-label", "Toggle card");
+          headerNode.appendChild(toggleBtn);
+
+          const dragHandle = document.createElement("button");
+          dragHandle.type = "button";
+          dragHandle.className = "card-drag-handle";
+          dragHandle.setAttribute("aria-label", "Reorder card");
+          dragHandle.textContent = "⠿";
+          headerNode.appendChild(dragHandle);
+
+          const bodyWrap = document.createElement("div");
+          bodyWrap.className = "card-collapsible-body";
+          Array.from(card.children).forEach((child) => {
+            if (child !== headerNode) {
+              bodyWrap.appendChild(child);
+            }
+          });
+          card.appendChild(bodyWrap);
+
+          const keySource = storageSource || slugify(headerLabel) || `card-${index}`;
+          const storageKey = getToggleStorageKey(window.location.pathname, keySource, index);
+          const savedOpen = localStorage.getItem(storageKey);
+          const setCardOpen = (open) => {
+            card.classList.toggle("is-collapsed", !open);
+            bodyWrap.hidden = !open;
+            toggleBtn.setAttribute("aria-expanded", open ? "true" : "false");
+            localStorage.setItem(storageKey, open ? "true" : "false");
+          };
+
+          setCardOpen(savedOpen !== "false");
+          toggleBtn.addEventListener("click", () => {
+            setCardOpen(card.classList.contains("is-collapsed"));
+          });
+          card.dataset.toggleReady = "true";
+        });
+
+        // Add drag handles to details.card elements (their summary acts as the header)
+        document.querySelectorAll("details.card").forEach((details) => {
+          const summary = details.querySelector(":scope > summary");
+          if (!summary || summary.querySelector(".card-drag-handle")) return;
+          const dragHandle = document.createElement("button");
+          dragHandle.type = "button";
+          dragHandle.className = "card-drag-handle";
+          dragHandle.setAttribute("aria-label", "Reorder card");
+          dragHandle.textContent = "⠿";
+          summary.appendChild(dragHandle);
+        });
+
+        const layoutToggles = document.querySelectorAll("[data-layout-toggle]");
+        const pagePath = window.location.pathname;
+        const layoutModeKey = `layoutEditMode:${pagePath}`;
+        const getContainerKey = (container, index) => {
+          const source = container.id || container.dataset.layoutKey || `grid-${index}`;
+          return `layoutOrder:${pagePath}:${source}`;
+        };
+
+        // Pass 1: assign layoutItemId to all cards in all containers
+        document.querySelectorAll("section.grid").forEach((container, index) => {
+          container.dataset.layoutContainerKey = getContainerKey(container, index);
+          Array.from(container.children)
+            .filter((child) => child.matches(".card, details.card"))
+            .forEach((card, cardIndex) => {
+              if (!card.dataset.layoutItemId) {
+                card.dataset.layoutItemId = card.id || card.dataset.toggleKey || `${container.dataset.layoutContainerKey}:item-${cardIndex}`;
+              }
+            });
+        });
+
+        // Pass 2: restore which container each card belongs to
+        const cardMapRaw = localStorage.getItem(`layoutCardMap:${pagePath}`);
+        if (cardMapRaw) {
+          try {
+            const cardMap = JSON.parse(cardMapRaw);
+            const allCards = {};
+            document.querySelectorAll("section.grid .card, section.grid details.card")
+              .forEach((card) => { if (card.dataset.layoutItemId) allCards[card.dataset.layoutItemId] = card; });
+            const containerLookup = {};
+            document.querySelectorAll("section.grid")
+              .forEach((c) => { containerLookup[c.dataset.layoutContainerKey] = c; });
+            Object.entries(cardMap).forEach(([itemId, containerKey]) => {
+              const card = allCards[itemId];
+              const target = containerLookup[containerKey];
+              if (card && target && card.parentElement !== target) target.appendChild(card);
+            });
+          } catch (_) {}
+        }
+
+        // Pass 3: restore order within each container
+        document.querySelectorAll("section.grid").forEach((container) => {
+          const savedOrderRaw = localStorage.getItem(container.dataset.layoutContainerKey);
+          if (savedOrderRaw) {
+            try {
+              const savedOrder = JSON.parse(savedOrderRaw);
+              savedOrder.forEach((itemId) => {
+                const match = Array.from(container.children).find((child) => child.dataset.layoutItemId === itemId);
+                if (match) container.appendChild(match);
+              });
+            } catch (_) {}
+          }
+        });
+
+        const persistContainerOrder = (container) => {
+          const order = Array.from(container.children)
+            .filter((child) => child.matches(".card, details.card"))
+            .map((child) => child.dataset.layoutItemId)
+            .filter(Boolean);
+          localStorage.setItem(container.dataset.layoutContainerKey, JSON.stringify(order));
+        };
+
+        const persistLayout = () => {
+          const cardMap = {};
+          document.querySelectorAll("section.grid").forEach((container) => {
+            persistContainerOrder(container);
+            Array.from(container.children)
+              .filter((c) => c.matches(".card, details.card"))
+              .forEach((card) => {
+                if (card.dataset.layoutItemId)
+                  cardMap[card.dataset.layoutItemId] = container.dataset.layoutContainerKey;
+              });
+          });
+          localStorage.setItem(`layoutCardMap:${pagePath}`, JSON.stringify(cardMap));
+        };
+
+        const sortables = [];
+        document.querySelectorAll("section.grid").forEach((container) => {
+          const cards = Array.from(container.children).filter((child) =>
+            child.matches(".card, details.card")
+          );
+          if (!window.Sortable || cards.length < 1) return;
+          sortables.push(
+            Sortable.create(container, {
+              group: { name: `layout-group:${pagePath}`, pull: true, put: true },
+              draggable: ".card, details.card",
+              handle: ".card-drag-handle",
+              animation: 150,
+              touchStartThreshold: 4,
+              fallbackTolerance: 3,
+              forceFallback: false,
+              disabled: true,
+              ghostClass: "sortable-ghost",
+              chosenClass: "sortable-chosen",
+              dragClass: "is-dragging",
+              onEnd: persistLayout,
+            })
+          );
+        });
+
+        const setLayoutEditMode = (enabled) => {
+          document.body.classList.toggle("layout-edit-mode", enabled);
+          layoutToggles.forEach((btn) => {
+            btn.setAttribute("aria-pressed", enabled ? "true" : "false");
+            if (!btn.classList.contains("lei-btn")) {
+              btn.classList.toggle("primary", enabled);
+              btn.classList.toggle("ghost", !enabled);
+            }
+            const labelEl = btn.querySelector(".lei-label");
+            if (labelEl) {
+              labelEl.textContent = " " + (enabled ? btn.dataset.labelSave : btn.dataset.labelEdit);
+            }
+          });
+          localStorage.setItem(layoutModeKey, enabled ? "true" : "false");
+          sortables.forEach((sortable) => {
+            sortable.option("disabled", !enabled);
+          });
+        };
+
+        layoutToggles.forEach((btn) => {
+          btn.addEventListener("click", () => {
+            setLayoutEditMode(!document.body.classList.contains("layout-edit-mode"));
+          });
+        });
+        setLayoutEditMode(localStorage.getItem(layoutModeKey) === "true");
+      });
+    </script>
+    {% block extra_scripts %}{% endblock %}
+  </body>
+</html>

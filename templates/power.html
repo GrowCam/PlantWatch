@@ -1,0 +1,117 @@
+{% extends "base.html" %}
+{% block extra_head %}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js" defer></script>
+{% endblock %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">⚡</span>{{ tr('power_title') }}</h1>
+          <p>{{ tr('power_intro') }}</p>
+        </div>
+      </header>
+
+      <section class="grid climate-summary-grid power-summary-grid">
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('total_power') }}</h3>
+          <p class="value" id="totalPowerValue">{{ '%.1f'|format(power_summary.totals.currentPowerW) }} W</p>
+        </div>
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('total_energy_yesterday') }}</h3>
+          <p class="value" id="totalEnergyYesterday">{{ '%.2f'|format(power_summary.totals.energyYesterdayKWh) }} kWh</p>
+          <small class="muted stat-cost" id="totalCostYesterday">{{ power_summary.currencySymbol }}{{ '%.2f'|format(power_summary.totals.costYesterday) }}</small>
+        </div>
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('total_energy_today') }}</h3>
+          <p class="value" id="totalEnergyToday">{{ '%.2f'|format(power_summary.totals.energyTodayKWh) }} kWh</p>
+          <small class="muted stat-cost" id="totalCostToday">{{ power_summary.currencySymbol }}{{ '%.2f'|format(power_summary.totals.costToday) }}</small>
+        </div>
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('total_energy_month') }}</h3>
+          <p class="value" id="totalEnergyMonth">{{ '%.2f'|format(power_summary.totals.energyMonthKWh) }} kWh</p>
+          <small class="muted stat-cost" id="totalCostMonth">{{ power_summary.currencySymbol }}{{ '%.2f'|format(power_summary.totals.costMonth) }}</small>
+        </div>
+      </section>
+
+      <section class="grid climate-config-grid">
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">📈</span>{{ tr('show_in_chart') }}</h3>
+          </summary>
+          <div class="device-topic-grid" id="powerDeviceFilters"></div>
+        </details>
+      </section>
+
+      <section class="grid climate-device-grid">
+        {% if not power_summary.devices %}
+        <div class="card">
+          <p class="muted">{{ tr('power_no_devices') }}</p>
+        </div>
+        {% endif %}
+        {% for device in power_summary.devices %}
+        <div class="card power-device-card">
+          <h3><span class="heading-emoji">{{ device.icon }}</span>{{ device.name }}</h3>
+          <ul class="info-list compact-info-list">
+            <li><span>{{ tr('current_power') }}</span><strong data-device-power="{{ device.id }}">{{ '%.1f'|format(device.currentPowerW) }} W</strong></li>
+            <li><span>{{ tr('energy_yesterday') }}</span><span class="device-kwh-cost"><strong data-device-yesterday="{{ device.id }}">{{ '%.2f'|format(device.energyYesterdayKWh) }} kWh</strong><small class="muted" data-device-cost-yesterday="{{ device.id }}">{{ power_summary.currencySymbol }}{{ '%.2f'|format(device.costYesterday) }}</small></span></li>
+            <li><span>{{ tr('energy_today') }}</span><span class="device-kwh-cost"><strong data-device-today="{{ device.id }}">{{ '%.2f'|format(device.energyTodayKWh) }} kWh</strong><small class="muted" data-device-cost-today="{{ device.id }}">{{ power_summary.currencySymbol }}{{ '%.2f'|format(device.costToday) }}</small></span></li>
+            <li><span>{{ tr('energy_month') }}</span><span class="device-kwh-cost"><strong data-device-month="{{ device.id }}">{{ '%.2f'|format(device.energyMonthKWh) }} kWh</strong><small class="muted" data-device-cost-month="{{ device.id }}">{{ power_summary.currencySymbol }}{{ '%.2f'|format(device.costMonth) }}</small></span></li>
+          </ul>
+          <small class="muted"><span>{{ tr('updated') }}:</span> <span data-device-updated="{{ device.id }}">{{ device.updatedAt or '–' }}</span></small>
+        </div>
+        {% endfor %}
+      </section>
+
+      <section class="grid climate-config-grid power-chart-grid">
+        <div class="card climate-card climate-expanded">
+          <div class="card-header">
+            <h3>{{ tr('current_power') }}</h3>
+          </div>
+          <canvas id="powerCurrentChart" height="240"></canvas>
+        </div>
+        <div class="card climate-card climate-expanded">
+          <div class="card-header">
+            <h3>{{ tr('energy_today') }}</h3>
+          </div>
+          <canvas id="powerEnergyChart" height="240"></canvas>
+        </div>
+        <div class="card climate-card climate-expanded">
+          <div class="card-header">
+            <h3>{{ tr('energy_month') }}</h3>
+          </div>
+          <canvas id="powerMonthChart" height="240"></canvas>
+        </div>
+      </section>
+
+      <section class="grid climate-config-grid">
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">⚡</span>{{ tr('power_settings') }}</h3>
+          </summary>
+          <form id="powerSettingsForm">
+            <label for="powerCurrency">{{ tr('currency') }}</label>
+            <select id="powerCurrency">
+              <option value="EUR" {% if app_settings.currency == 'EUR' %}selected{% endif %}>{{ tr('currency_eur') }}</option>
+              <option value="USD" {% if app_settings.currency == 'USD' %}selected{% endif %}>{{ tr('currency_usd') }}</option>
+              <option value="GBP" {% if app_settings.currency == 'GBP' %}selected{% endif %}>{{ tr('currency_gbp') }}</option>
+              <option value="custom" {% if app_settings.currency not in ['EUR', 'USD', 'GBP'] %}selected{% endif %}>{{ tr('currency_custom') }}</option>
+            </select>
+
+            <div id="powerCustomCurrencyGroup" {% if app_settings.currency in ['EUR', 'USD', 'GBP'] %}hidden{% endif %}>
+              <label for="powerCurrencyCustom">{{ tr('currency_custom_value') }}</label>
+              <input type="text" id="powerCurrencyCustom" maxlength="12" value="{% if app_settings.currency not in ['EUR', 'USD', 'GBP'] %}{{ app_settings.currency }}{% endif %}" />
+            </div>
+
+            <label for="pricePerKwh" id="pricePerKwhLabel">{{ tr('price_per_kwh') }} ({{ currency_symbol(app_settings.currency) }})</label>
+            <input type="number" id="pricePerKwh" min="0" step="0.001" value="{{ power_settings.price_per_kwh }}" />
+
+            <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+          </form>
+        </details>
+      </section>
+{% endblock %}
+{% block extra_scripts %}
+    <script>
+      window.POWER_SUMMARY = {{ power_summary|tojson }};
+    </script>
+    <script src="{{ url_for('static', filename='js/power.js') }}" defer></script>
+{% endblock %}

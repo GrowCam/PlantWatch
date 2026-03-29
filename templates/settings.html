@@ -1,0 +1,390 @@
+{% extends "base.html" %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">⚙️</span>{{ tr('settings_title') }}</h1>
+          <p>{{ tr('settings_intro') }}</p>
+        </div>
+      </header>
+
+      <form id="appSettingsForm" class="grid settings-card-grid">
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🖥️</span>{{ tr('settings_title') }}</h3>
+          </summary>
+          <label for="appLanguage">{{ tr('language') }}</label>
+          <select id="appLanguage">
+            <option value="de" {% if app_settings.language == 'de' %}selected{% endif %}>{{ tr('language_de') }}</option>
+            <option value="en" {% if app_settings.language == 'en' %}selected{% endif %}>{{ tr('language_en') }}</option>
+          </select>
+
+          <label for="appDateTimeFormat">{{ tr('datetime_format') }}</label>
+          <select id="appDateTimeFormat">
+            <option value="eu" {% if app_settings.datetime_format == 'eu' %}selected{% endif %}>{{ tr('datetime_eu') }}</option>
+            <option value="us" {% if app_settings.datetime_format == 'us' %}selected{% endif %}>{{ tr('datetime_us') }}</option>
+            <option value="iso" {% if app_settings.datetime_format == 'iso' %}selected{% endif %}>{{ tr('datetime_iso') }}</option>
+          </select>
+
+          <label for="appMeasurementSystem">{{ tr('measurement_system') }}</label>
+          <select id="appMeasurementSystem">
+            <option value="metric" {% if app_settings.measurement_system == 'metric' %}selected{% endif %}>{{ tr('metric') }}</option>
+            <option value="imperial" {% if app_settings.measurement_system == 'imperial' %}selected{% endif %}>{{ tr('imperial') }}</option>
+          </select>
+
+          <label for="appTemperatureUnit">{{ tr('temperature_unit') }}</label>
+          <select id="appTemperatureUnit">
+            <option value="c" {% if app_settings.temperature_unit == 'c' %}selected{% endif %}>{{ tr('celsius') }}</option>
+            <option value="f" {% if app_settings.temperature_unit == 'f' %}selected{% endif %}>{{ tr('fahrenheit') }}</option>
+          </select>
+
+          <label for="appearanceTheme">{{ tr('appearance_theme') }}</label>
+          <select id="appearanceTheme">
+            <option value="dark-blue" {% if app_settings.appearance_theme == 'dark-blue' %}selected{% endif %}>{{ tr('theme_dark_blue') }}</option>
+            <option value="dark-grey" {% if app_settings.appearance_theme == 'dark-grey' %}selected{% endif %}>{{ tr('theme_dark_grey') }}</option>
+            <option value="light" {% if app_settings.appearance_theme == 'light' %}selected{% endif %}>{{ tr('theme_light') }}</option>
+          </select>
+
+          <label for="accentTheme">{{ tr('accent_preset') }}</label>
+          <select id="accentTheme">
+            <option value="">{{ tr('select_preset') }}</option>
+            <option value="teal">Teal</option>
+            <option value="sunset">Sunset</option>
+            <option value="mint">Mint</option>
+            <option value="ocean">Ocean</option>
+            <option value="rose">Rose</option>
+            <option value="gold">Gold</option>
+            <option value="lime">Lime</option>
+          </select>
+
+          <div class="color-picker-grid">
+            <label for="accentPrimary">{{ tr('accent_primary') }}</label>
+            <input type="color" id="accentPrimary" value="{{ app_settings.accent_primary }}" />
+            <label for="accentSecondary">{{ tr('accent_secondary') }}</label>
+            <input type="color" id="accentSecondary" value="{{ app_settings.accent_secondary }}" />
+          </div>
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">📨</span>{{ tr('telegram_settings') }}</h3>
+          </summary>
+          <label class="toggle" for="telegramEnabled">
+            <span>{{ tr('telegram_enabled') }}</span>
+            <input type="checkbox" id="telegramEnabled" {% if app_settings.telegram_enabled %}checked{% endif %} />
+          </label>
+          <small class="hint-text">{{ tr('telegram_disabled_copy') }}</small>
+
+          <label for="telegramBotToken">{{ tr('telegram_bot_token') }}</label>
+          <div class="secret-field">
+            <input type="password" id="telegramBotToken" value="{{ app_settings.telegram_bot_token }}" autocomplete="off" spellcheck="false" />
+            <button type="button" class="ghost small secret-toggle" data-target="telegramBotToken" data-show="{{ tr('show_secret') }}" data-hide="{{ tr('hide_secret') }}">{{ tr('show_secret') }}</button>
+          </div>
+
+          <label for="telegramChatId">{{ tr('telegram_chat_id') }}</label>
+          <div class="secret-field">
+            <input type="password" id="telegramChatId" value="{{ app_settings.telegram_chat_id }}" autocomplete="off" spellcheck="false" />
+            <button type="button" class="ghost small secret-toggle" data-target="telegramChatId" data-show="{{ tr('show_secret') }}" data-hide="{{ tr('hide_secret') }}">{{ tr('show_secret') }}</button>
+          </div>
+
+          <label class="toggle" for="weeklySummaryEnabled">
+            <span>{{ tr('weekly_summary_enabled') }}</span>
+            <input type="checkbox" id="weeklySummaryEnabled" {% if app_settings.weekly_summary_enabled %}checked{% endif %} />
+          </label>
+
+          <label for="weeklySummaryTime">{{ tr('weekly_summary_time') }}</label>
+          <input type="time" id="weeklySummaryTime" value="{{ app_settings.weekly_summary_time }}" />
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🔌</span>{{ tr('zigbee_settings') }}</h3>
+          </summary>
+          <div class="device-topic-grid">
+            <label class="toggle" for="pumpEnabled"><span>{{ tr('pump_enabled') }}</span><input type="checkbox" id="pumpEnabled" {% if app_settings.pump_enabled %}checked{% endif %} /></label>
+            <label class="toggle" for="heaterEnabledSetting"><span>{{ tr('heater_enabled') }}</span><input type="checkbox" id="heaterEnabledSetting" {% if app_settings.heater_enabled %}checked{% endif %} /></label>
+            <label class="toggle" for="exhaustEnabledSetting"><span>{{ tr('exhaust_enabled') }}</span><input type="checkbox" id="exhaustEnabledSetting" {% if app_settings.exhaust_enabled %}checked{% endif %} /></label>
+            <label class="toggle" for="waterSensorEnabled"><span>{{ tr('water_sensor_enabled') }}</span><input type="checkbox" id="waterSensorEnabled" {% if app_settings.water_sensor_enabled %}checked{% endif %} /></label>
+            <label class="toggle" for="lightEnabled"><span>{{ tr('light_enabled') }}</span><input type="checkbox" id="lightEnabled" {% if app_settings.light_enabled %}checked{% endif %} /></label>
+            <label class="toggle" for="dehumidifierEnabled"><span>{{ tr('dehumidifier_enabled') }}</span><input type="checkbox" id="dehumidifierEnabled" {% if app_settings.dehumidifier_enabled %}checked{% endif %} /></label>
+            <label class="toggle" for="humidifierEnabled"><span>{{ tr('humidifier_enabled') }}</span><input type="checkbox" id="humidifierEnabled" {% if app_settings.humidifier_enabled %}checked{% endif %} /></label>
+          </div>
+
+          <label for="mqttHost">{{ tr('mqtt_host') }}</label>
+          <input type="text" id="mqttHost" value="{{ app_settings.mqtt_host }}" />
+
+          <label for="mqttPort">{{ tr('mqtt_port') }}</label>
+          <input type="number" id="mqttPort" min="1" max="65535" value="{{ app_settings.mqtt_port }}" />
+
+          <label for="mqttTransport">{{ tr('mqtt_transport') }}</label>
+          <select id="mqttTransport">
+            <option value="tcp" {% if app_settings.mqtt_transport == 'tcp' %}selected{% endif %}>{{ tr('mqtt_transport_tcp') }}</option>
+            <option value="websockets" {% if app_settings.mqtt_transport == 'websockets' %}selected{% endif %}>{{ tr('mqtt_transport_ws') }}</option>
+          </select>
+
+          <label for="mqttWsPath">{{ tr('mqtt_ws_path') }}</label>
+          <input type="text" id="mqttWsPath" value="{{ app_settings.mqtt_ws_path }}" />
+
+          <label for="mqttUsername">{{ tr('mqtt_username') }}</label>
+          <input type="text" id="mqttUsername" value="{{ app_settings.mqtt_username }}" autocomplete="off" spellcheck="false" />
+
+          <label for="mqttPassword">{{ tr('mqtt_password') }}</label>
+          <div class="secret-field">
+            <input type="password" id="mqttPassword" value="{{ app_settings.mqtt_password }}" autocomplete="off" spellcheck="false" />
+            <button type="button" class="ghost small secret-toggle" data-target="mqttPassword" data-show="{{ tr('show_secret') }}" data-hide="{{ tr('hide_secret') }}">{{ tr('show_secret') }}</button>
+          </div>
+
+          <div class="device-topic-field" data-controlled-by="pumpEnabled"><label for="pumpTopic">{{ tr('pump_topic') }}</label><input type="text" id="pumpTopic" value="{{ app_settings.pump_topic }}" spellcheck="false" /></div>
+          <div class="device-topic-field" data-controlled-by="heaterEnabledSetting"><label for="heaterTopic">{{ tr('heater_topic') }}</label><input type="text" id="heaterTopic" value="{{ app_settings.heater_topic }}" spellcheck="false" /></div>
+          <div class="device-topic-field" data-controlled-by="exhaustEnabledSetting"><label for="exhaustTopic">{{ tr('exhaust_topic') }}</label><input type="text" id="exhaustTopic" value="{{ app_settings.exhaust_topic }}" spellcheck="false" /></div>
+          <div class="device-topic-field" data-controlled-by="lightEnabled"><label for="lightTopic">{{ tr('light_topic') }}</label><input type="text" id="lightTopic" value="{{ app_settings.light_topic }}" spellcheck="false" /></div>
+          <div class="device-topic-field" data-controlled-by="dehumidifierEnabled"><label for="dehumidifierTopic">{{ tr('dehumidifier_topic') }}</label><input type="text" id="dehumidifierTopic" value="{{ app_settings.dehumidifier_topic }}" spellcheck="false" /></div>
+          <div class="device-topic-field" data-controlled-by="humidifierEnabled"><label for="humidifierTopic">{{ tr('humidifier_topic') }}</label><input type="text" id="humidifierTopic" value="{{ app_settings.humidifier_topic }}" spellcheck="false" /></div>
+          <div class="device-topic-field" data-controlled-by="waterSensorEnabled"><label for="waterSensorTopic">{{ tr('water_sensor_topic') }}</label><input type="text" id="waterSensorTopic" value="{{ app_settings.water_sensor_topic }}" spellcheck="false" /></div>
+
+          <small class="hint-text">{{ tr('mqtt_restart_hint') }}</small>
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🌡️</span>{{ tr('switchbot_settings') }}</h3>
+          </summary>
+          <small class="hint-text">{{ tr('switchbot_hint') }}</small>
+          <label for="switchbotMac">{{ tr('switchbot_mac') }}</label>
+          <input type="text" id="switchbotMac" value="{{ app_settings.switchbot_mac }}" spellcheck="false" autocomplete="off" />
+          <label for="switchbotScanTimeout">{{ tr('switchbot_timeout') }}</label>
+          <input type="number" id="switchbotScanTimeout" min="3" max="60" value="{{ app_settings.switchbot_scan_timeout }}" />
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🕒</span>{{ tr('light_cycle_settings') }}</h3>
+          </summary>
+          <label for="settingsLightStart">{{ tr('lights_on_start') }}</label>
+          <input type="time" id="settingsLightStart" value="{{ light_cycle_settings.lights_on_start }}" />
+          <label for="settingsLightEnd">{{ tr('lights_on_end') }}</label>
+          <input type="time" id="settingsLightEnd" value="{{ light_cycle_settings.lights_on_end }}" />
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🧭</span>{{ tr('menu_settings') }}</h3>
+          </summary>
+          <small class="hint-text">{{ tr('menu_settings_hint') }}</small>
+          <div class="menu-config-grid" id="menuConfigList">
+            {% for item in menu_editor_items %}
+            <div class="menu-config-row" data-menu-item="{{ item.id }}" draggable="{{ 'false' if item.locked else 'true' }}">
+              <button type="button" class="menu-drag-handle" aria-label="{{ tr('menu_order') }}" {% if item.locked %}disabled{% endif %}>⋮⋮</button>
+              <div class="menu-config-name">{{ item.icon }} {{ tr(item.label_key) }}</div>
+              <label class="toggle menu-config-toggle" for="menuVisible_{{ item.id }}">
+                <span>{{ tr('menu_visibility') }}</span>
+                <input
+                  type="checkbox"
+                  id="menuVisible_{{ item.id }}"
+                  data-menu-visible="{{ item.id }}"
+                  {% if item.visible %}checked{% endif %}
+                  {% if item.locked %}checked disabled{% endif %}
+                />
+              </label>
+              <button
+                type="button"
+                class="menu-default-btn{% if item.is_default %} is-default{% endif %}"
+                data-menu-default="{{ item.id }}"
+                aria-label="{{ tr('menu_default_page') }}"
+                title="{{ tr('menu_default_page') }}"
+              >{% if item.is_default %}★{% else %}☆{% endif %}</button>
+            </div>
+            {% endfor %}
+          </div>
+        </details>
+
+        <div class="settings-save-card">
+          <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+        </div>
+      </form>
+
+{% endblock %}
+{% block extra_scripts %}
+    <script>
+      document.addEventListener("DOMContentLoaded", () => {
+        const form = document.getElementById("appSettingsForm");
+        const accentTheme = document.getElementById("accentTheme");
+        const accentPrimary = document.getElementById("accentPrimary");
+        const accentSecondary = document.getElementById("accentSecondary");
+        const toggles = [
+          "pumpEnabled","heaterEnabledSetting","exhaustEnabledSetting","waterSensorEnabled","lightEnabled","dehumidifierEnabled","humidifierEnabled"
+        ].map((id) => document.getElementById(id));
+        const accentPresets = {
+          teal: { primary: "#14b8a6", secondary: "#6366f1" },
+          sunset: { primary: "#f97316", secondary: "#ef4444" },
+          mint: { primary: "#10b981", secondary: "#06b6d4" },
+          ocean: { primary: "#0ea5e9", secondary: "#2563eb" },
+          rose: { primary: "#ec4899", secondary: "#8b5cf6" },
+          gold: { primary: "#f59e0b", secondary: "#d97706" },
+          lime: { primary: "#84cc16", secondary: "#22c55e" },
+        };
+        const toast = document.getElementById("toast");
+        const openLightboxFor = (src, lightbox, lightboxImage) => {
+          if (!src || !lightbox || !lightboxImage) return;
+          lightboxImage.src = src;
+          lightbox.hidden = false;
+          document.body.classList.add("lightbox-open");
+        };
+        const closeLightboxFor = (lightbox, lightboxImage) => {
+          if (!lightbox || !lightboxImage) return;
+          lightbox.hidden = true;
+          lightboxImage.src = "";
+          document.body.classList.remove("lightbox-open");
+        };
+        const showToast = (message, isError = false) => {
+          if (!toast) return;
+          toast.textContent = message;
+          toast.classList.toggle("error", isError);
+          toast.classList.add("show");
+          setTimeout(() => toast.classList.remove("show"), 2500);
+        };
+        if (!form) return;
+        const syncPresetSelect = () => {
+          const primary = accentPrimary.value.toLowerCase();
+          const secondary = accentSecondary.value.toLowerCase();
+          const matched = Object.entries(accentPresets).find(([, preset]) => preset.primary === primary && preset.secondary === secondary);
+          accentTheme.value = matched ? matched[0] : "";
+        };
+        const applyAccentPreset = () => {
+          const preset = accentPresets[accentTheme.value];
+          if (!preset) return;
+          accentPrimary.value = preset.primary;
+          accentSecondary.value = preset.secondary;
+        };
+        accentTheme?.addEventListener("change", applyAccentPreset);
+        accentPrimary?.addEventListener("input", syncPresetSelect);
+        accentSecondary?.addEventListener("input", syncPresetSelect);
+        document.querySelectorAll(".secret-toggle").forEach((btn) => {
+          btn.addEventListener("click", () => {
+            const target = document.getElementById(btn.dataset.target);
+            if (!target) return;
+            const reveal = target.type === "password";
+            target.type = reveal ? "text" : "password";
+            btn.textContent = reveal ? btn.dataset.hide : btn.dataset.show;
+          });
+        });
+        const menuList = document.getElementById("menuConfigList");
+        const setDefaultPage = (pageId) => {
+          document.querySelectorAll("[data-menu-default]").forEach((btn) => {
+            const isThis = btn.dataset.menuDefault === pageId;
+            btn.classList.toggle("is-default", isThis);
+            btn.textContent = isThis ? "★" : "☆";
+          });
+        };
+        if (menuList) {
+          menuList.addEventListener("click", (evt) => {
+            const btn = evt.target.closest("[data-menu-default]");
+            if (!btn) return;
+            setDefaultPage(btn.dataset.menuDefault);
+          });
+        }
+        let draggedRow = null;
+        if (menuList) {
+          menuList.querySelectorAll("[data-menu-item]").forEach((row) => {
+            if (row.getAttribute("draggable") !== "true") return;
+            row.addEventListener("dragstart", () => {
+              draggedRow = row;
+              row.classList.add("is-dragging");
+            });
+            row.addEventListener("dragend", () => {
+              row.classList.remove("is-dragging");
+              draggedRow = null;
+            });
+            row.addEventListener("dragover", (evt) => {
+              evt.preventDefault();
+              if (!draggedRow || draggedRow === row) return;
+              const rect = row.getBoundingClientRect();
+              const after = evt.clientY > rect.top + rect.height / 2;
+              menuList.insertBefore(draggedRow, after ? row.nextSibling : row);
+            });
+          });
+        }
+        const updateControlledTopics = () => {
+          document.querySelectorAll("[data-controlled-by]").forEach((group) => {
+            const toggle = document.getElementById(group.dataset.controlledBy);
+            const enabled = Boolean(toggle?.checked);
+            group.classList.toggle("is-disabled", !enabled);
+            group.querySelectorAll("input").forEach((input) => {
+              input.disabled = !enabled;
+            });
+          });
+        };
+        toggles.forEach((toggle) => toggle?.addEventListener("change", updateControlledTopics));
+        syncPresetSelect();
+        updateControlledTopics();
+        form.addEventListener("submit", async (evt) => {
+          evt.preventDefault();
+          try {
+            const response = await fetch("/api/action", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "app_settings",
+                language: document.getElementById("appLanguage").value,
+                datetime_format: document.getElementById("appDateTimeFormat").value,
+                measurement_system: document.getElementById("appMeasurementSystem").value,
+                temperature_unit: document.getElementById("appTemperatureUnit").value,
+                appearance_theme: document.getElementById("appearanceTheme").value,
+                accent_theme: document.getElementById("accentTheme").value || "custom",
+                accent_primary: document.getElementById("accentPrimary").value,
+                accent_secondary: document.getElementById("accentSecondary").value,
+                telegram_enabled: document.getElementById("telegramEnabled").checked,
+                telegram_bot_token: document.getElementById("telegramBotToken").value,
+                weekly_summary_enabled: document.getElementById("weeklySummaryEnabled").checked,
+                weekly_summary_time: document.getElementById("weeklySummaryTime").value,
+                telegram_chat_id: document.getElementById("telegramChatId").value,
+                mqtt_host: document.getElementById("mqttHost").value,
+                mqtt_port: document.getElementById("mqttPort").value,
+                mqtt_transport: document.getElementById("mqttTransport").value,
+                mqtt_ws_path: document.getElementById("mqttWsPath").value,
+                mqtt_username: document.getElementById("mqttUsername").value,
+                mqtt_password: document.getElementById("mqttPassword").value,
+                pump_enabled: document.getElementById("pumpEnabled").checked,
+                heater_enabled: document.getElementById("heaterEnabledSetting").checked,
+                exhaust_enabled: document.getElementById("exhaustEnabledSetting").checked,
+                water_sensor_enabled: document.getElementById("waterSensorEnabled").checked,
+                light_enabled: document.getElementById("lightEnabled").checked,
+                dehumidifier_enabled: document.getElementById("dehumidifierEnabled").checked,
+                humidifier_enabled: document.getElementById("humidifierEnabled").checked,
+                pump_topic: document.getElementById("pumpTopic").value,
+                heater_topic: document.getElementById("heaterTopic").value,
+                exhaust_topic: document.getElementById("exhaustTopic").value,
+                light_topic: document.getElementById("lightTopic").value,
+                dehumidifier_topic: document.getElementById("dehumidifierTopic").value,
+                humidifier_topic: document.getElementById("humidifierTopic").value,
+                water_sensor_topic: document.getElementById("waterSensorTopic").value,
+                switchbot_mac: document.getElementById("switchbotMac").value,
+                switchbot_scan_timeout: document.getElementById("switchbotScanTimeout").value,
+                menu_order: Array.from(document.querySelectorAll("#menuConfigList [data-menu-item]")).map((row) => row.dataset.menuItem),
+                menu_visibility: Object.fromEntries(
+                  Array.from(document.querySelectorAll("[data-menu-visible]")).map((input) => [input.dataset.menuVisible, input.checked])
+                ),
+                default_page: document.querySelector(".menu-default-btn.is-default")?.dataset.menuDefault || "dashboard",
+              }),
+            });
+            const data = await response.json();
+            if (!response.ok) throw new Error(data.error || data.message || "{{ tr('save_failed') }}");
+            const cycleResponse = await fetch("/api/action", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                action: "light_cycle_settings",
+                lights_on_start: document.getElementById("settingsLightStart").value,
+                lights_on_end: document.getElementById("settingsLightEnd").value,
+              }),
+            });
+            const cycleData = await cycleResponse.json();
+            if (!cycleResponse.ok) throw new Error(cycleData.error || cycleData.message || "{{ tr('save_failed') }}");
+            showToast(data.message || "{{ tr('saved') }}");
+            window.location.reload();
+          } catch (error) {
+            showToast(error.message, true);
+          }
+        });
+      });
+    </script>
+{% endblock %}

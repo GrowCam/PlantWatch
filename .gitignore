@@ -1,0 +1,35 @@
+# Credentials & instance config
+.env
+grow_data.json
+
+# Runtime data
+sensor_data.db
+
+# Logs
+*.log
+bot_log.txt
+cam_timelapse.log
+check_watering.log
+
+# Media (instance-specific)
+timelapse/
+images/
+
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Deployment scripts (contain personal Pi config)
+deploy.sh
+sync_pi.sh
+restart_pi_services.sh
+install_t3u.sh
+
+# Misc
+.DS_Store
+*.egg-info/
+dist/
+build/

@@ -1,0 +1,188 @@
+{% extends "base.html" %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">🎞️</span>{{ tr('nav_timelapse') }}</h1>
+          <p>{{ tr('timelapse_images') }}</p>
+        </div>
+      </header>
+
+      <section class="grid climate-summary-grid">
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('total_images') }}</h3>
+          <p class="value" id="imgCount">{{ dashboard.images.count }}</p>
+        </div>
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('oldest_image') }}</h3>
+          <p class="value" id="imgOldest">{{ dashboard.images.oldest or '–' }}</p>
+        </div>
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('latest_image') }}</h3>
+          <p class="value" id="imgLatest">{{ dashboard.images.latest or '–' }}</p>
+        </div>
+        <div class="card stat-card stat-card-compact">
+          <h3>{{ tr('storage') }}</h3>
+          <p class="value" id="imgSize">{{ dashboard.images.size_gb }} GB</p>
+        </div>
+      </section>
+
+      <section class="grid climate-config-grid">
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🎞️</span>{{ tr('timelapse_settings') }}</h3>
+          </summary>
+          <form id="timelapseSettingsForm">
+            <label class="toggle" for="timelapseEnabled">
+              <span>{{ tr('timelapse_enabled') }}</span>
+              <input type="checkbox" id="timelapseEnabled" {% if timelapse_settings.enabled %}checked{% endif %} />
+            </label>
+            <label class="toggle" for="timelapseLightOnly">
+              <span>{{ tr('timelapse_light_only') }}</span>
+              <input type="checkbox" id="timelapseLightOnly" {% if timelapse_settings.light_only %}checked{% endif %} />
+            </label>
+            <label for="timelapseRotation">{{ tr('rotation') }}</label>
+            <select id="timelapseRotation">
+              <option value="0" {% if timelapse_settings.rotation_degrees == 0 %}selected{% endif %}>0°</option>
+              <option value="90" {% if timelapse_settings.rotation_degrees == 90 %}selected{% endif %}>90°</option>
+              <option value="180" {% if timelapse_settings.rotation_degrees == 180 %}selected{% endif %}>180°</option>
+              <option value="270" {% if timelapse_settings.rotation_degrees == 270 %}selected{% endif %}>270°</option>
+            </select>
+            <label for="timelapseInterval">{{ tr('interval_minutes') }}</label>
+            <input type="number" id="timelapseInterval" min="1" step="1" value="{{ timelapse_settings.interval_minutes }}" />
+            <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+          </form>
+          <div class="card-header">
+            <div>
+              <h3>{{ tr('latest_photo') }}</h3>
+            </div>
+            <span class="badge neutral" id="timelapsePreviewTimestamp">
+              {% if dashboard.timelapse_latest_photo %}
+              {{ dashboard.timelapse_latest_photo.timestamp }}
+              {% else %}
+              –
+              {% endif %}
+            </span>
+          </div>
+          <div class="photo-wrapper timelapse-preview-wrap">
+            <img
+              id="timelapsePreview"
+              src="{% if dashboard.timelapse_latest_photo %}{{ url_for('latest_timelapse_photo') }}?ts={{ dashboard.timelapse_latest_photo.raw_timestamp|urlencode }}{% endif %}"
+              alt="{{ tr('latest_photo') }}"
+              loading="lazy"
+            />
+          </div>
+        </details>
+
+        <details class="card debug-card" id="cameraSettingsCard" open {% if not timelapse_settings.enabled %}hidden{% endif %}>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">📷</span>{{ tr('camera_settings') }}</h3>
+          </summary>
+          <small class="hint-text">{{ tr('camera_hint') }}</small>
+          <form id="cameraSettingsForm">
+            <label class="toggle" for="cameraAutoFocus">
+              <span>{{ tr('camera_auto_focus') }}</span>
+              <input type="checkbox" id="cameraAutoFocus" {% if app_settings.camera_auto_focus %}checked{% endif %} />
+            </label>
+            <label for="cameraFocus">{{ tr('camera_focus') }}</label>
+            <div class="slider-field">
+              <input type="range" id="cameraFocus" min="-1" max="255" step="1" value="{{ app_settings.camera_focus }}" data-slider-unit="" data-slider-digits="0" />
+              <input type="number" id="cameraFocusNumber" min="-1" max="255" step="1" value="{{ app_settings.camera_focus }}" data-slider-number-for="cameraFocus" />
+            </div>
+            <label class="toggle" for="cameraAutoExposure">
+              <span>{{ tr('camera_auto_exposure') }}</span>
+              <input type="checkbox" id="cameraAutoExposure" {% if app_settings.camera_auto_exposure %}checked{% endif %} />
+            </label>
+            <label for="cameraExposure">{{ tr('camera_exposure') }}</label>
+            <div class="slider-field">
+              <input type="range" id="cameraExposure" min="0" max="255" step="1" value="{{ 0 if app_settings.camera_exposure < 0 else app_settings.camera_exposure }}" data-slider-unit="" data-slider-digits="0" />
+              <input type="number" id="cameraExposureNumber" min="0" max="255" step="1" value="{{ 0 if app_settings.camera_exposure < 0 else app_settings.camera_exposure }}" data-slider-number-for="cameraExposure" />
+            </div>
+            <label for="cameraBrightness">{{ tr('camera_brightness') }}</label>
+            <div class="slider-field">
+              <input type="range" id="cameraBrightness" min="-1" max="255" step="1" value="{{ app_settings.camera_brightness }}" data-slider-unit="" data-slider-digits="0" />
+              <input type="number" id="cameraBrightnessNumber" min="-1" max="255" step="1" value="{{ app_settings.camera_brightness }}" data-slider-number-for="cameraBrightness" />
+            </div>
+            <label for="cameraContrast">{{ tr('camera_contrast') }}</label>
+            <div class="slider-field">
+              <input type="range" id="cameraContrast" min="-1" max="255" step="1" value="{{ app_settings.camera_contrast }}" data-slider-unit="" data-slider-digits="0" />
+              <input type="number" id="cameraContrastNumber" min="-1" max="255" step="1" value="{{ app_settings.camera_contrast }}" data-slider-number-for="cameraContrast" />
+            </div>
+            <label for="cameraSaturation">{{ tr('camera_saturation') }}</label>
+            <div class="slider-field">
+              <input type="range" id="cameraSaturation" min="-1" max="255" step="1" value="{{ app_settings.camera_saturation }}" data-slider-unit="" data-slider-digits="0" />
+              <input type="number" id="cameraSaturationNumber" min="-1" max="255" step="1" value="{{ app_settings.camera_saturation }}" data-slider-number-for="cameraSaturation" />
+            </div>
+            <label for="cameraSharpness">{{ tr('camera_sharpness') }}</label>
+            <div class="slider-field">
+              <input type="range" id="cameraSharpness" min="-1" max="255" step="1" value="{{ app_settings.camera_sharpness }}" data-slider-unit="" data-slider-digits="0" />
+              <input type="number" id="cameraSharpnessNumber" min="-1" max="255" step="1" value="{{ app_settings.camera_sharpness }}" data-slider-number-for="cameraSharpness" />
+            </div>
+            <div class="card-actions">
+              <button type="submit" class="primary">{{ tr('save_settings') }}</button>
+              <button type="button" class="ghost" id="cameraTestButton">{{ tr('camera_test_image') }}</button>
+            </div>
+          </form>
+          <div class="photo-wrapper camera-test-preview" id="cameraTestPreviewWrap" {% if not camera_test_image %}hidden{% endif %}>
+            <img
+              id="cameraTestPreview"
+              src="{% if camera_test_image %}{{ url_for('latest_camera_test') }}?ts={{ camera_test_image.raw_timestamp|urlencode }}{% endif %}"
+              alt="{{ tr('camera_test_image') }}"
+            />
+          </div>
+          <span class="badge neutral" id="cameraTestTimestamp" data-prefix="{{ tr('created') }}" {% if not camera_test_image %}hidden{% endif %}>
+            {% if camera_test_image %}
+            {{ camera_test_image.timestamp }}
+            {% endif %}
+          </span>
+        </details>
+      </section>
+
+      <section class="grid climate-config-grid">
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🎥</span>{{ tr('timelapse_images') }}</h3>
+          </summary>
+          <div class="card-actions">
+            <button class="ghost small" data-action="timelapse_video">🎥 {{ tr('create_video') }}</button>
+            <button class="ghost small" id="tlDownload" type="button" {% if not dashboard.timelapse.exists %}hidden{% endif %}>⬇️ {{ tr('download_video') }}</button>
+          </div>
+          <div class="info-list" id="tlMeta">
+            <div class="metric-card">
+              <div class="icon-chip">📅</div>
+              <div>
+                <span>{{ tr('created') }}</span>
+                <strong id="tlTimestamp">{{ dashboard.timelapse.timestamp or '–' }}</strong>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="icon-chip">⏱️</div>
+              <div>
+                <span>{{ tr('duration') }}</span>
+                <strong id="tlDuration">{{ dashboard.timelapse.duration and dashboard.timelapse.duration ~ 's' or '–' }}</strong>
+              </div>
+            </div>
+            <div class="metric-card">
+              <div class="icon-chip">💾</div>
+              <div>
+                <span>{{ tr('file_size') }}</span>
+                <strong id="tlSize">
+                  {% if dashboard.timelapse.size_bytes %}
+                  {{ '%.2f'|format(dashboard.timelapse.size_bytes / (1024 * 1024)) }} MB
+                  {% else %}
+                  –
+                  {% endif %}
+                </strong>
+              </div>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <div class="image-lightbox" id="timelapseImageLightbox" hidden>
+        <button type="button" class="image-lightbox-close" id="timelapseImageLightboxClose" aria-label="Close">✕</button>
+        <img id="timelapseImageLightboxImg" src="" alt="{{ tr('camera_test_image') }}" />
+      </div>
+{% endblock %}
+{% block extra_scripts %}
+    <script src="{{ url_for('static', filename='js/timelapse.js') }}" defer></script>
+{% endblock %}

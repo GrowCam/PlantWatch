@@ -1,0 +1,19 @@
+[Unit]
+Description=GrowCam Dashboard (Flask)
+After=network.target
+
+[Service]
+Type=simple
+User=__USER__
+Group=__USER__
+WorkingDirectory=__INSTALL_DIR__
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=__INSTALL_DIR__/.env
+ExecStart=__INSTALL_DIR__/.venv/bin/python __INSTALL_DIR__/dashboard_app.py
+StandardOutput=append:__INSTALL_DIR__/dashboard.log
+StandardError=append:__INSTALL_DIR__/dashboard.log
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
