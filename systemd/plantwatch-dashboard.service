@@ -1,5 +1,5 @@
 [Unit]
-Description=GrowCam Dashboard (Flask)
+Description=PlantWatch Dashboard (Flask)
 After=network.target
 
 [Service]

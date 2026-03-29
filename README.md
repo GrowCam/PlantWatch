@@ -1,8 +1,8 @@
-# GrowCam
+# PlantWatch
 
 **A self-hosted grow monitoring and automation system for Raspberry Pi.**
 
-GrowCam turns a Raspberry Pi into a full-featured grow room controller — automated timelapse photography, real-time climate monitoring, smart device control via MQTT, and remote access through a Telegram bot. No cloud required. Your data stays on your hardware.
+PlantWatch turns a Raspberry Pi into a full-featured grow room controller — automated timelapse photography, real-time climate monitoring, smart device control via MQTT, and remote access through a Telegram bot. No cloud required. Your data stays on your hardware.
 
 ---
 
@@ -53,7 +53,7 @@ GrowCam turns a Raspberry Pi into a full-featured grow room controller — autom
 | Smart devices | Any Zigbee device supported by Zigbee2MQTT |
 | MQTT broker | Mosquitto or any MQTT broker (typically runs on the same Pi) |
 
-BLE and Zigbee2MQTT are optional — GrowCam works without them, you just won't have sensor readings or automated device control.
+BLE and Zigbee2MQTT are optional — PlantWatch works without them, you just won't have sensor readings or automated device control.
 
 ---
 
@@ -62,8 +62,8 @@ BLE and Zigbee2MQTT are optional — GrowCam works without them, you just won't 
 ### 1. Clone the repository
 
 ```bash
-git clone https://github.com/your-username/growcam.git
-cd growcam
+git clone https://github.com/PlantWatch/PlantWatch.git
+cd PlantWatch
 ```
 
 ### 2. Configure your environment
@@ -133,17 +133,17 @@ See `.env.example` for all available options with descriptions.
 
 ## Services
 
-GrowCam runs as two systemd services installed by `setup.sh`:
+PlantWatch runs as two systemd services installed by `setup.sh`:
 
 | Service | Description |
 |---|---|
-| `growcam-dashboard` | Flask web dashboard on port 5050 |
-| `growcam-bot` | Telegram bot listener |
+| `plantwatch-dashboard` | Flask web dashboard on port 5050 |
+| `plantwatch-bot` | Telegram bot listener |
 
 ```bash
-sudo systemctl status growcam-dashboard
-sudo systemctl status growcam-bot
-sudo systemctl restart growcam-dashboard growcam-bot
+sudo systemctl status plantwatch-dashboard
+sudo systemctl status plantwatch-bot
+sudo systemctl restart plantwatch-dashboard plantwatch-bot
 ```
 
 Timelapse capture and watering reminders run via cron (installed by `setup.sh`).
@@ -173,8 +173,8 @@ A typical workflow uses `rsync` to push code changes to the Pi and restart servi
 
 ```bash
 rsync -av --exclude='.venv' --exclude='grow_data.json' --exclude='*.log' \
-  ./ user@your-pi.local:/home/user/GrowCam/
-ssh user@your-pi.local "sudo systemctl restart growcam-dashboard growcam-bot"
+  ./ user@your-pi.local:/home/user/PlantWatch/
+ssh user@your-pi.local "sudo systemctl restart plantwatch-dashboard plantwatch-bot"
 ```
 
 ---

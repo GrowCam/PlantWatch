@@ -5,7 +5,7 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR"
 
-PROJECT_NAME="GrowCam"
+PROJECT_NAME="PlantWatch"
 PYTHON_BIN="python3"
 VENV_PATH="${SCRIPT_DIR}/.venv"
 REQUIREMENTS_FILE="${SCRIPT_DIR}/requirements.txt"
@@ -37,7 +37,7 @@ warn() {
 
 require_command() {
     if ! command -v "$1" >/dev/null 2>&1; then
-        warn "Benötigter Befehl '$1' wurde nicht gefunden."
+        warn "Required command '$1' not found."
         return 1
     fi
     return 0
@@ -45,17 +45,17 @@ require_command() {
 
 install_apt_packages() {
     if ! command -v apt-get >/dev/null 2>&1; then
-        warn "apt-get wurde nicht gefunden. Überspringe Installation der Systempakete."
-        warn "Bitte installiere die folgenden Pakete manuell: ${APT_PACKAGES[*]}"
+        warn "apt-get not found. Skipping system package installation."
+        warn "Please install the following packages manually: ${APT_PACKAGES[*]}"
         return
     fi
 
     local SUDO="$DEFAULT_SUDO"
 
-    info "Aktualisiere Paketquellen..."
+    info "Updating package sources..."
     $SUDO apt-get update -y
 
-    info "Installiere benötigte Systempakete..."
+    info "Installing required system packages..."
     $SUDO apt-get install -y "${APT_PACKAGES[@]}"
 }
 
@@ -66,60 +66,60 @@ create_directories() {
 
 create_venv() {
     if [[ ! -d "$VENV_PATH" ]]; then
-        info "Erstelle virtuelles Python-Umfeld unter $VENV_PATH"
+        info "Creating Python virtual environment at $VENV_PATH"
         "$PYTHON_BIN" -m venv --system-site-packages "$VENV_PATH"
     else
-        info "Virtuelles Umfeld existiert bereits: $VENV_PATH"
+        info "Virtual environment already exists: $VENV_PATH"
     fi
 }
 
 install_python_requirements() {
     if [[ ! -f "$REQUIREMENTS_FILE" ]]; then
-        warn "Keine requirements.txt gefunden – überspringe Python-Installation."
+        warn "requirements.txt not found — skipping Python package installation."
         return
     fi
 
     local pip_bin="$VENV_PATH/bin/pip"
     if [[ ! -x "$pip_bin" ]]; then
-        warn "pip wurde im virtuellen Umfeld nicht gefunden."
+        warn "pip not found in virtual environment."
         return
     fi
 
-    info "Aktualisiere pip..."
+    info "Upgrading pip..."
     "$pip_bin" install --upgrade pip
 
-    info "Installiere Python-Abhängigkeiten aus requirements.txt"
+    info "Installing Python dependencies from requirements.txt"
     "$pip_bin" install --upgrade -r "$REQUIREMENTS_FILE"
 }
 
 prepare_env_file() {
     if [[ -f "$ENV_FILE" ]]; then
-        info ".env existiert bereits – überspringe Kopie."
+        info ".env already exists — skipping copy."
         return
     fi
 
     if [[ -f "$ENV_TEMPLATE" ]]; then
-        info "Erzeuge .env aus Vorlage"
+        info "Creating .env from template"
         cp "$ENV_TEMPLATE" "$ENV_FILE"
-        warn "Bitte aktualisiere $ENV_FILE mit deinen API-Schlüsseln und Chat-IDs."
+        warn "Please update $ENV_FILE with your API keys and chat IDs."
     else
-        warn "Keine .env.example gefunden – bitte .env manuell erstellen."
+        warn ".env.example not found — please create .env manually."
     fi
 }
 
 install_systemd_services() {
     if ! command -v systemctl >/dev/null 2>&1; then
-        warn "systemd nicht gefunden – überspringe Service-Installation."
+        warn "systemd not found — skipping service installation."
         return
     fi
 
     local svc_dir="/etc/systemd/system"
     local python_bin="${VENV_PATH}/bin/python"
 
-    info "Schreibe systemd-Services nach ${svc_dir}"
-    cat <<EOF | ${DEFAULT_SUDO:-sudo} tee "${svc_dir}/growcam-dashboard.service" >/dev/null
+    info "Writing systemd services to ${svc_dir}"
+    cat <<EOF | ${DEFAULT_SUDO:-sudo} tee "${svc_dir}/plantwatch-dashboard.service" >/dev/null
 [Unit]
-Description=GrowCam Dashboard (Flask)
+Description=PlantWatch Dashboard (Flask)
 After=network.target
 
 [Service]
@@ -139,9 +139,9 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-    cat <<EOF | ${DEFAULT_SUDO:-sudo} tee "${svc_dir}/growcam-bot.service" >/dev/null
+    cat <<EOF | ${DEFAULT_SUDO:-sudo} tee "${svc_dir}/plantwatch-bot.service" >/dev/null
 [Unit]
-Description=GrowCam Telegram Bot Listener
+Description=PlantWatch Telegram Bot Listener
 After=network-online.target
 Wants=network-online.target
 
@@ -160,28 +160,28 @@ RestartSec=5
 WantedBy=multi-user.target
 EOF
 
-    info "Aktiviere und starte Services..."
+    info "Enabling and starting services..."
     ${DEFAULT_SUDO:-sudo} systemctl daemon-reload
-    ${DEFAULT_SUDO:-sudo} systemctl enable --now growcam-dashboard.service growcam-bot.service
+    ${DEFAULT_SUDO:-sudo} systemctl enable --now plantwatch-dashboard.service plantwatch-bot.service
 }
 
 install_cron_jobs() {
     if ! command -v crontab >/dev/null 2>&1; then
-        warn "crontab nicht gefunden – überspringe Cron-Installation."
+        warn "crontab not found — skipping cron installation."
         return
     fi
 
     local cron_tmp
     cron_tmp="$(mktemp)"
     cat <<EOF >"$cron_tmp"
-# Timelapse-Foto alle 30 Minuten
+# Timelapse capture every 30 minutes
 */30 * * * * ${VENV_PATH}/bin/python ${SCRIPT_DIR}/cam.py --timelapse >> ${SCRIPT_DIR}/cam_timelapse.log 2>&1
 
-# Bewässerungs-Check einmal täglich (16:45)
+# Watering reminder check once daily at 16:45
 45 16 * * * ${VENV_PATH}/bin/python ${SCRIPT_DIR}/check_watering.py >> ${SCRIPT_DIR}/check_watering.log 2>&1
 EOF
 
-    info "Installiere Cronjobs für Benutzer ${RUN_USER}"
+    info "Installing cron jobs for user ${RUN_USER}"
     crontab -u "${RUN_USER}" "$cron_tmp"
     rm -f "$cron_tmp"
 }
@@ -190,26 +190,26 @@ print_summary() {
     cat <<EOF
 
 ----------------------------------------
-${PROJECT_NAME} Setup abgeschlossen.
+${PROJECT_NAME} setup complete.
 
-Nächste Schritte:
-  1. Passe die Datei .env mit deinen realen Werten an.
-  2. Aktiviere das virtuelle Umfeld via: source "$VENV_PATH/bin/activate"
-  3. Teste den Bot mit: python3 bot_listener.py (innerhalb des venv)
-  4. Stelle sicher, dass die Kamera via libcamera funktioniert (z.B. libcamera-still).
+Next steps:
+  1. Edit .env with your real values.
+  2. Activate the virtual environment: source "$VENV_PATH/bin/activate"
+  3. Test the bot: python3 bot_listener.py (inside venv)
+  4. Verify the camera works: libcamera-still -o test.jpg
 
-Hinweise:
-  - Für BLE-Funktionen muss Bluetooth aktiviert sein (sudo systemctl enable --now bluetooth).
-  - systemd-Services und Cronjobs wurden eingerichtet (sofern verfügbar).
+Notes:
+  - BLE features require Bluetooth: sudo systemctl enable --now bluetooth
+  - systemd services and cron jobs have been installed (if available).
 ----------------------------------------
 EOF
 }
 
 main() {
-    info "Starte ${PROJECT_NAME} Setup"
+    info "Starting ${PROJECT_NAME} setup"
 
     require_command "$PYTHON_BIN" || {
-        warn "Python 3 wird benötigt. Bitte installiere es und führe das Skript erneut aus."
+        warn "Python 3 is required. Please install it and run this script again."
         exit 1
     }
 

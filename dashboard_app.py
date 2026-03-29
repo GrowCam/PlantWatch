@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Local GrowCam dashboard with Telegram-integrated controls."""
+"""Local PlantWatch dashboard with Telegram-integrated controls."""
 
 from __future__ import annotations
 

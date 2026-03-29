@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+from lang import t
 import os
 import subprocess
 import sys
@@ -13,7 +14,7 @@ import unicodedata
 from datetime import datetime, timedelta
 from collections import deque
 
-# === Konfiguration ===
+# === Configuration ===
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 IMAGES_DIR = os.path.join(SCRIPT_DIR, "images")
 TIMELAPSE_DIR = os.path.join(SCRIPT_DIR, "timelapse")
@@ -61,7 +62,7 @@ def load_env_file(env_path):
                 value = value.strip().strip('"').strip("'")
                 os.environ.setdefault(key, value)
     except Exception as exc:
-        print(f"⚠️ Konnte .env nicht laden: {exc}")
+        print(f"⚠️ Failed to load .env: {exc}")
 
 
 load_env_file(os.path.join(SCRIPT_DIR, ".env"))
@@ -70,24 +71,24 @@ BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 
 if not BOT_TOKEN or not CHAT_ID:
-    raise RuntimeError("TELEGRAM_BOT_TOKEN und TELEGRAM_CHAT_ID müssen in der .env gesetzt sein.")
+    raise RuntimeError("TELEGRAM_BOT_TOKEN and TELEGRAM_CHAT_ID must be set in .env.")
 
 try:
     CHAT_ID_INT = int(CHAT_ID)
 except ValueError as exc:
-    raise RuntimeError("TELEGRAM_CHAT_ID muss eine Zahl sein.") from exc
+    raise RuntimeError("TELEGRAM_CHAT_ID must be a number.") from exc
 
-CHECK_INTERVAL = 0.5  # Sekunden Pause nach Fehlern
+CHECK_INTERVAL = 0.5
 
 LAST_UPDATE_ID = None
-WAITING_FOR_LITERS = False  # Status für /fert ohne Zahl
+WAITING_FOR_LITERS = False
 
-# === Regex für Dateinamen ===
+# === Filename regex ===
 filename_pattern = re.compile(
     r"(?P<ts>\d{2}-\d{2}-\d{4}-\d{2}:\d{2}:\d{2})_(?P<grow>.*?)_(?P<temp>[\d.]+)C_(?P<hum>[\d.]+)p"
 )
 
-# === JSON-Handling ===
+# === JSON helpers ===
 def load_data():
     try:
         with open(DATA_FILE, "r") as f:
@@ -99,7 +100,7 @@ def save_data(data):
     with open(DATA_FILE, "w") as f:
         json.dump(data, f, indent=2)
 
-# === Telegram API Helfer ===
+# === Telegram API helpers ===
 def get_updates():
     global LAST_UPDATE_ID
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/getUpdates"
@@ -128,7 +129,7 @@ def send_bot_message(text):
         append_bot_log("OUT", text)
         return resp
     except Exception as e:
-        print(f"❌ Fehler beim Senden der Bot-Nachricht: {e}")
+        print(t("send_message_error", exc=e))
 
 def send_video(file_path):
     url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendVideo"
@@ -138,19 +139,19 @@ def send_video(file_path):
             data = {'chat_id': CHAT_ID}
             response = requests.post(url, files=files, data=data, timeout=90)
             if not response.ok:
-                send_bot_message(f"❌ Fehler beim Senden des Videos: {response.text}")
+                send_bot_message(t("send_video_error", text=response.text))
     except Exception as e:
-        send_bot_message(f"❌ Fehler beim Öffnen/Senden der Datei:\n{e}")
+        send_bot_message(t("send_file_error", exc=e))
 
 def get_latest_image():
     try:
         image_files = glob.glob(os.path.join(IMAGES_DIR, "*.jpg"))
         if not image_files:
-            print("❌ Kein Bild gefunden.")
+            print(t("no_image"))
             return None
         return max(image_files, key=os.path.getmtime)
     except Exception as e:
-        print(f"❌ Fehler beim Suchen nach letztem Bild: {e}")
+        print(t("image_search_error", exc=e))
         return None
 
 
@@ -212,19 +213,19 @@ def build_context_lines(plant_context):
     watering = plant_context.get("watering_method")
 
     if temp_val is not None:
-        context_lines.append(f"Temperatur: {temp_val:.1f} °C")
+        context_lines.append(f"{t('temperature')}: {temp_val:.1f} °C")
     if hum_val is not None:
-        context_lines.append(f"Luftfeuchte: {hum_val:.1f} %")
+        context_lines.append(f"{t('humidity')}: {hum_val:.1f} %")
     if week_info:
-        context_lines.append(f"Alter: {week_info}")
+        context_lines.append(f"{t('age')}: {week_info}")
     if phase:
-        context_lines.append(f"Phase: {phase}")
+        context_lines.append(f"{t('phase_label')}: {phase}")
     if plant_type:
-        context_lines.append(f"Pflanzentyp: {plant_type}")
+        context_lines.append(f"{t('plant_type')}: {plant_type}")
     if nutrients:
-        context_lines.append(f"Düngeschema: {nutrients}")
+        context_lines.append(f"{t('nutrient_plan')}: {nutrients}")
     if watering:
-        context_lines.append(f"Bewässerung: {watering}")
+        context_lines.append(f"{t('watering_method')}: {watering}")
 
     return context_lines
 
@@ -236,51 +237,48 @@ def send_telegram_photo(image_path):
         metadata = parse_image_metadata(image_path)
 
         if not metadata:
-            msg = f"❌ Dateiname unvollständig: {filename}"
+            msg = t("incomplete_filename", filename=filename)
             print(msg)
             send_bot_message(msg)
             return False
 
         timestamp = metadata.get("timestamp_raw")
-        grow_name = load_data().get("grow_name", "unbekannt")
+        grow_name = load_data().get("grow_name", t("unknown"))
         temp_raw = metadata.get("temp_raw", "")
         hum_raw = metadata.get("hum_raw", "")
 
-        # Datum/Zeit aus Dateiname
         date_obj = metadata.get("timestamp")
         if date_obj:
-            date_display = date_obj.strftime("%d.%m.%Y")
+            date_display = date_obj.strftime(t("date_format"))
             time_display = date_obj.strftime("%H:%M:%S")
         else:
             date_display = timestamp
             time_display = "??:??:??"
 
-        temp = f"{temp_raw.replace('C', ' °C')}" if "noTemp" not in temp_raw else "nicht verfügbar"
-        hum = f"{hum_raw.replace('p', ' %')}" if "noHum" not in hum_raw else "nicht verfügbar"
+        temp = f"{temp_raw.replace('C', ' °C')}" if "noTemp" not in temp_raw else t("not_available")
+        hum = f"{hum_raw.replace('p', ' %')}" if "noHum" not in hum_raw else t("not_available")
 
-        now = datetime.now().strftime("%d.%m.%Y um %H:%M Uhr")
+        now = datetime.now().strftime(t("datetime_format"))
 
-        # === Grow-Daten laden ===
         data = load_data()
         watering = data.get("last_watering")
         flower_date = data.get("flower_date")
         sprout_date = data.get("sprout_date")
 
-        watering_str = datetime.strptime(watering, "%Y-%m-%d").strftime("%d.%m.%Y") if watering else "keine Daten"
+        watering_str = datetime.strptime(watering, "%Y-%m-%d").strftime(t("date_format")) if watering else t("no_data")
         week_info, phase = get_week_and_phase(sprout_date, flower_date)
 
-        # Caption
         caption = (
-            "🌱 <b>PlantWatch Update</b> 📸\n\n"
-            f"<b>📅 Datum:</b> {date_display}\n"
-            f"<b>🕙 Zeit:</b> {time_display}\n"
-            f"<b>🌿 Grow:</b> {grow_name}\n"
-            f"<b>🌡 Temperatur:</b> {temp}\n"
-            f"<b>💧 Luftfeuchte:</b> {hum}\n"
-            f"<b>🚿 Letzte Bewässerung:</b> {watering_str}\n"
+            f"🌱 <b>{t('photo_title')}</b> 📸\n\n"
+            f"<b>📅 {t('caption_date')}:</b> {date_display}\n"
+            f"<b>🕙 {t('caption_time')}:</b> {time_display}\n"
+            f"<b>🌿 {t('caption_grow')}:</b> {grow_name}\n"
+            f"<b>🌡 {t('caption_temp')}:</b> {temp}\n"
+            f"<b>💧 {t('caption_humidity')}:</b> {hum}\n"
+            f"<b>🚿 {t('caption_watering')}:</b> {watering_str}\n"
             f"<b>🗓️ {week_info}</b>\n"
-            f"<b>🌷 Phase:</b> {phase}\n\n"
-            f"<i>📤 Gesendet am {now}</i>"
+            f"<b>🌷 {t('caption_phase')}:</b> {phase}\n\n"
+            f"<i>📤 {t('caption_sent', dt=now)}</i>"
         )
 
         with open(image_path, 'rb') as photo:
@@ -289,22 +287,22 @@ def send_telegram_photo(image_path):
             response = requests.post(url, files=files, data=data, timeout=60)
 
         if response.ok:
-            print("✅ Bild erfolgreich gesendet.")
+            print(t("image_sent_ok"))
             return True
         else:
-            error_msg = f"❌ Fehler beim Senden des Fotos: {response.status_code}\n{response.text}"
+            error_msg = t("send_photo_error", code=response.status_code) + f"\n{response.text}"
             print(error_msg)
             send_bot_message(error_msg)
             return False
 
     except Exception as e:
-        error_msg = f"❌ Ausnahme beim Senden des Fotos:\n{e}"
+        error_msg = t("send_photo_exception", exc=e)
         print(error_msg)
         send_bot_message(error_msg)
         return False
 
 
-# === Timelapse Statistik ===
+# === Timelapse stats ===
 def get_timelapse_stats():
     try:
         images = sorted([
@@ -312,22 +310,22 @@ def get_timelapse_stats():
             if f.lower().endswith(".jpg")
         ])
     except Exception as e:
-        return f"❌ Fehler beim Lesen des Timelapse-Ordners:\n{e}"
+        return t("timelapse_read_error", exc=e)
 
     if not images:
-        return "❌ Keine Bilder im Timelapse-Ordner gefunden."
+        return t("no_timelapse_images")
 
     oldest_file = images[0]
     match = filename_pattern.search(oldest_file)
     if match:
-        growname = load_data().get("grow_name", "unbekannt")
+        growname = load_data().get("grow_name", t("unknown"))
         try:
             oldest_dt = datetime.strptime(match.group("ts"), "%d-%m-%Y-%H:%M:%S")
-            oldest_str = oldest_dt.strftime("%d.%m.%Y")
+            oldest_str = oldest_dt.strftime(t("date_format"))
         except:
-            oldest_str = "unbekannt"
+            oldest_str = t("unknown")
     else:
-        growname, oldest_str = "unbekannt", "unbekannt"
+        growname, oldest_str = t("unknown"), t("unknown")
 
     total_size_bytes = sum(os.path.getsize(os.path.join(TIMELAPSE_DIR, f)) for f in images)
     total_size_gb = total_size_bytes / (1024**3)
@@ -341,12 +339,12 @@ def get_timelapse_stats():
             continue
         try:
             ts = datetime.strptime(m.group("ts"), "%d-%m-%Y-%H:%M:%S")
-            t = float(m.group("temp"))
+            tt = float(m.group("temp"))
             h = float(m.group("hum"))
 
-            if t > 0:
+            if tt > 0:
                 if ts >= cutoff or len(images) < 72*6:
-                    temps.append(t)
+                    temps.append(tt)
             if h > 0:
                 if ts >= cutoff or len(images) < 72*6:
                     hums.append(h)
@@ -354,34 +352,34 @@ def get_timelapse_stats():
         except:
             continue
 
-    avg_temp = f"{(sum(temps)/len(temps)):.1f} °C" if temps else "keine Daten"
-    avg_hum = f"{(sum(hums)/len(hums)):.1f} %" if hums else "keine Daten"
+    avg_temp = f"{(sum(temps)/len(temps)):.1f} °C" if temps else t("no_data")
+    avg_hum = f"{(sum(hums)/len(hums)):.1f} %" if hums else t("no_data")
 
     msg = (
-        "📊 <b>Timelapse Daten</b>\n\n"
-        f"🖼️ Ältestes Bild: {oldest_str}\n"
-        f"📂 Anzahl Bilder: {len(images)} (≈{total_size_gb:.2f} GB)\n"
+        f"📊 <b>{t('timelapse_stats')}</b>\n\n"
+        f"🖼️ {t('oldest_image')}: {oldest_str}\n"
+        f"📂 {t('image_count')}: {len(images)} (≈{total_size_gb:.2f} GB)\n"
         f"🌿 Grow: {growname}\n"
-        f"🌡 ø-Temp (72h): {avg_temp}\n"
-        f"💧 ø-Luftfeuchte (72h): {avg_hum}"
+        f"🌡 {t('avg_temp_72h')}: {avg_temp}\n"
+        f"💧 {t('avg_humidity_72h')}: {avg_hum}"
     )
     return msg
 
-# === Hilfsfunktion: Woche/Phase berechnen ===
+# === Helper: week / phase ===
 def get_week_and_phase(sprout_date, flower_date):
-    week_info = "unbekannt"
-    phase = "Vegi"
+    week_info = t("unknown")
+    phase = t("phase_veg")
     if sprout_date:
         try:
             sprout_dt = datetime.strptime(sprout_date, "%Y-%m-%d")
             today = datetime.now()
             days = (today - sprout_dt).days
             weeks = days // 7 + 1
-            week_info = f"Woche {weeks} ({days} Tage)"
+            week_info = t("week_info", weeks=weeks, days=days)
             if flower_date:
                 flower_dt = datetime.strptime(flower_date, "%Y-%m-%d")
                 if today >= flower_dt:
-                    phase = "Blüte"
+                    phase = t("phase_flower")
         except:
             pass
     return week_info, phase
@@ -393,10 +391,10 @@ def read_log_tail(file_path, max_lines=LOG_TAIL_LINES):
     except FileNotFoundError:
         return False, None
     except Exception as exc:
-        return False, f"❌ Fehler beim Lesen der Logdatei:\n{exc}"
+        return False, t("log_read_error", exc=exc)
     return True, "".join(tail_lines).rstrip()
 
-# === Nachrichten-Handler ===
+# === Message handler ===
 def handle_message(message):
     global WAITING_FOR_LITERS
     raw_text = message.get("text", "") or ""
@@ -422,7 +420,6 @@ def handle_message(message):
     command_lower = command.lower() if command else ""
     command_base = command_lower.split("@", 1)[0] if command_lower else ""
 
-    # Wenn Bot auf Literangabe wartet, aber ein neues Kommando beginnt, abbrechen
     if WAITING_FOR_LITERS and command:
         WAITING_FOR_LITERS = False
 
@@ -454,15 +451,7 @@ def handle_message(message):
     }
 
     def send_fert_set_help():
-        help_text = (
-            "⚙️ Nutzung: /fert_set \"Name\" &lt;Woche&gt; &lt;ml/L&gt;\n"
-            "Beispiele:\n"
-            "• /fert_set calcium 4 1.2\n"
-            "• /fert_set \"Calciumcarbonat (10%)\" 4 1.2\n"
-            "• /fert_set magnesium 6 1.05\n"
-            "Verfügbare Kurzformen: calcium, magnesium, bloom, complex, phosphor."
-        )
-        send_bot_message(help_text)
+        send_bot_message(t("fert_set_help"))
 
     def parse_fert_args(arg_text):
         """
@@ -502,7 +491,7 @@ def handle_message(message):
 
         ferts = data.get("fertilizers", {})
         if not ferts:
-            send_bot_message("⚠️ Keine Dünger-Daten in JSON definiert.")
+            send_bot_message(t("no_fert_data"))
             return
 
         current_week = 1
@@ -523,9 +512,9 @@ def handle_message(message):
             )
 
         msg = (
-            f"🧪 <b>Dünger für {liters_display} L ({percent_display}%)</b>\n"
-            f"📅 {week_info} – Phase: {phase}\n"
-            f"📊 Aktuelle Woche: {current_week}\n\n" +
+            f"{t('fert_title', liters=liters_display, percent=percent_display)}\n"
+            f"📅 {week_info} – {t('phase_label')}: {phase}\n"
+            f"📊 {t('current_week')}: {current_week}\n\n" +
             "\n".join(fert_lines)
         )
         send_bot_message(msg)
@@ -534,12 +523,11 @@ def handle_message(message):
         send_bot_message(info)
         try:
             result = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
-            output = result.stdout.strip() or "⚠️ Kein Output erhalten."
-            send_bot_message(f"🖨️ Ergebnis:\n{output}")
+            output = result.stdout.strip() or t("no_output")
+            send_bot_message(f"🖨️ {t('result')}:\n{output}")
         except Exception as e:
-            send_bot_message(f"❌ Fehler bei Ausführung:\n{e}")
+            send_bot_message(t("exec_error", exc=e))
 
-    # Wenn Bot weiterhin auf Literangabe wartet
     if WAITING_FOR_LITERS:
         parsed = parse_fert_args(stripped_text)
         if parsed:
@@ -547,24 +535,22 @@ def handle_message(message):
             liters, percent = parsed
             send_fertilizer_plan(liters, percent)
         else:
-            send_bot_message("⚠️ Bitte gib die Literzahl optional mit Prozent an, z. B. '10 80'.")
+            send_bot_message(t("enter_liters"))
         return
 
-    # --- Neue Befehle ---
     if command_base == "/water":
         parts = command_args.split()
         try:
             if not parts:
                 input_date = datetime.now()
             else:
-                # erstes Argument als Datum nutzen
                 input_date = datetime.strptime(parts[0], "%d.%m.%Y")
 
             data["last_watering"] = input_date.strftime("%Y-%m-%d")
             save_data(data)
-            send_bot_message(f"🚿 Bewässerung gespeichert: {input_date.strftime('%d.%m.%Y')}")
+            send_bot_message(t("water_saved", date=input_date.strftime(t("date_format"))))
         except ValueError:
-            send_bot_message("❌ Ungültiges Datum. Bitte DD.MM.YYYY verwenden.")
+            send_bot_message(t("invalid_date"))
 
     elif command_base == "/info":
         start = data.get("start_date")
@@ -572,23 +558,23 @@ def handle_message(message):
         watering = data.get("last_watering")
         flower_date = data.get("flower_date")
 
-        start_str = datetime.strptime(start, "%Y-%m-%d").strftime("%d.%m.%Y") if start else "unbekannt"
-        sprout_str = datetime.strptime(sprout, "%Y-%m-%d").strftime("%d.%m.%Y") if sprout else "unbekannt"
-        watering_str = datetime.strptime(watering, "%Y-%m-%d").strftime("%d.%m.%Y") if watering else "keine Daten"
-        flower_str = datetime.strptime(flower_date, "%Y-%m-%d").strftime("%d.%m.%Y") if flower_date else None
+        start_str = datetime.strptime(start, "%Y-%m-%d").strftime(t("date_format")) if start else t("unknown")
+        sprout_str = datetime.strptime(sprout, "%Y-%m-%d").strftime(t("date_format")) if sprout else t("unknown")
+        watering_str = datetime.strptime(watering, "%Y-%m-%d").strftime(t("date_format")) if watering else t("no_data")
+        flower_str = datetime.strptime(flower_date, "%Y-%m-%d").strftime(t("date_format")) if flower_date else None
 
         week_info, phase = get_week_and_phase(sprout, flower_date)
 
         stats = get_timelapse_stats()
         msg = (
-            "ℹ️ <b>Grow Info</b>\n\n"
-            f"🌱 Start: {start_str}\n"
-            f"🌿 Sprout: {sprout_str}\n"
-            f"🚿 Letzte Bewässerung: {watering_str}\n"
-            f"📅 {week_info} – Phase: {phase}\n"
+            f"ℹ️ <b>{t('info_title')}</b>\n\n"
+            f"🌱 {t('info_start')}: {start_str}\n"
+            f"🌿 {t('info_sprout_label')}: {sprout_str}\n"
+            f"🚿 {t('info_watering')}: {watering_str}\n"
+            f"📅 {week_info} – {t('phase_label')}: {phase}\n"
         )
-        if flower_str and phase == "Blüte":
-            msg += f"🌸 Blüte-Beginn: {flower_str}\n"
+        if flower_str and phase == t("phase_flower"):
+            msg += f"🌸 {t('flower_start_label')}: {flower_str}\n"
         msg += f"\n{stats}"
         send_bot_message(msg)
 
@@ -596,18 +582,16 @@ def handle_message(message):
         args_text = command_args
 
         if not args_text:
-            print("🧪 /set_fert: keine Argumente → Hilfe")
             send_fert_set_help()
             return
 
         try:
             tokens = shlex.split(args_text)
         except ValueError:
-            send_bot_message("❌ Konnte Eingabe nicht lesen. Bitte Anführungszeichen korrekt setzen.")
+            send_bot_message(t("fert_set_parse_error"))
             return
 
         if len(tokens) < 3:
-            print(f"🧪 /set_fert: zu wenig Argumente ({tokens}) → Hilfe")
             send_fert_set_help()
             return
 
@@ -627,7 +611,7 @@ def handle_message(message):
             if week < 1:
                 raise ValueError
         except ValueError:
-            send_bot_message("⚠️ Woche muss eine positive Zahl sein (z. B. 1–16).")
+            send_bot_message(t("fert_week_invalid"))
             return
 
         try:
@@ -635,7 +619,7 @@ def handle_message(message):
             if value < 0:
                 raise ValueError
         except ValueError:
-            send_bot_message("⚠️ Wert muss eine Zahl ≥ 0 sein.")
+            send_bot_message(t("fert_value_invalid"))
             return
 
         ferts = data.setdefault("fertilizers", {})
@@ -653,20 +637,18 @@ def handle_message(message):
         ferts[existing_key][week_key] = value
         save_data(data)
 
-        send_bot_message(
-            f"✅ {existing_key}: Woche {week} auf {value:.2f} ml/L gesetzt."
-        )
+        send_bot_message(t("fert_set_success", name=existing_key, week=week, value=value))
 
     elif command_base == "/fert":
         args_text = command_args
         if not args_text:
             WAITING_FOR_LITERS = True
-            send_bot_message("💧 Bitte Literanzahl (optional mit Prozent) eingeben, z. B. '/fert 10 80'.")
+            send_bot_message(t("fert_enter_liters"))
             return
 
         parsed = parse_fert_args(args_text)
         if not parsed:
-            send_bot_message("⚠️ Nutzung: /fert <Liter> [Prozent]")
+            send_bot_message(t("fert_usage"))
             return
 
         liters, percent = parsed
@@ -675,33 +657,31 @@ def handle_message(message):
     elif command_base == "/set_name":
         new_name = command_args
         if not new_name:
-            send_bot_message("⚠️ Nutzung: /set_name <Neuer Name>")
+            send_bot_message(t("set_name_usage"))
             return
 
         if not new_name:
-            send_bot_message("⚠️ Bitte einen gültigen Namen angeben.")
+            send_bot_message(t("set_name_empty"))
             return
 
         data["grow_name"] = new_name
         save_data(data)
-        send_bot_message(f"🌿 Grow-Name wurde auf <b>{new_name}</b> gesetzt.")
-        print(f"✅ Grow-Name geändert auf: {new_name}")
-
-
+        send_bot_message(t("set_name_success", name=new_name))
+        print(f"✅ Grow name changed to: {new_name}")
 
     elif text == "/flower":
-        today = datetime.now().strftime("%d.%m.%Y")
+        today = datetime.now().strftime(t("date_format"))
         data["flower_date"] = datetime.now().strftime("%Y-%m-%d")
         save_data(data)
-        send_bot_message(f"🌸 Blüte-Start gespeichert: {today}")
+        send_bot_message(t("flower_saved", date=today))
 
     elif text == "/veg":
         if not data.get("flower_date"):
-            send_bot_message("🌱 Blüte war noch nicht aktiv – bleibe in Veg.")
+            send_bot_message(t("veg_already"))
         else:
             data["flower_date"] = ""
             save_data(data)
-            send_bot_message("🌱 Blüte wurde zurückgesetzt. Veg-Modus aktiv.")
+            send_bot_message(t("veg_reset"))
 
     elif text.startswith("/set_seed"):
         parts = text.split()
@@ -713,9 +693,9 @@ def handle_message(message):
 
             data["start_date"] = input_date.strftime("%Y-%m-%d")
             save_data(data)
-            send_bot_message(f"🌱 Startdatum (Seed) gesetzt auf {input_date.strftime('%d.%m.%Y')}")
+            send_bot_message(t("seed_set", date=input_date.strftime(t("date_format"))))
         except ValueError:
-            send_bot_message("❌ Ungültiges Datum. Bitte DD.MM.YYYY verwenden.")
+            send_bot_message(t("invalid_date"))
 
     elif text.startswith("/set_sprout"):
         parts = text.split()
@@ -727,67 +707,65 @@ def handle_message(message):
 
             data["sprout_date"] = input_date.strftime("%Y-%m-%d")
             save_data(data)
-            send_bot_message(f"🌿 Sprout-Datum gesetzt auf {input_date.strftime('%d.%m.%Y')}")
+            send_bot_message(t("sprout_set", date=input_date.strftime(t("date_format"))))
         except ValueError:
-            send_bot_message("❌ Ungültiges Datum. Bitte DD.MM.YYYY verwenden.")
+            send_bot_message(t("invalid_date"))
 
-
-    # --- Bestehende Befehle ---
     elif text == "/logs cam":
         success, log_content = read_log_tail(CAM_LOG_FILE)
         if not success and log_content is None:
-            send_bot_message("⚠️ Keine Logdatei gefunden.")
+            send_bot_message(t("no_log_file"))
         elif not success:
             send_bot_message(log_content)
         else:
             escaped = html.escape(log_content)
-            send_bot_message(f"🗒️ Letzte {LOG_TAIL_LINES} Zeilen aus cam.log:\n\n<pre>{escaped}</pre>")
+            send_bot_message(f"🗒️ {t('log_tail', n=LOG_TAIL_LINES)}:\n\n<pre>{escaped}</pre>")
 
     elif command_base in ["/foto", "/bild", "/capture"]:
-        print("📸 Manuelle Aufnahme via Telegram...")
-        send_bot_message("📸 Starte Aufnahme mit Sensoren...")
+        print("📸 Manual capture via Telegram...")
+        send_bot_message(t("capture_start"))
         subprocess.run([PYTHON_CMD, CAM_SCRIPT])
         image_path = get_latest_image()
         if image_path:
             send_telegram_photo(image_path)
         else:
-            send_bot_message("❌ Kein Bild gefunden.")
+            send_bot_message(t("no_image"))
 
     elif text == "/foto_only":
-        print("📸 Nur Foto ohne Sensoren...")
-        run_and_send([PYTHON_CMD, CAM_SCRIPT, "--photo-only"], "📸 Starte Aufnahme ohne Sensoren...")
+        print("📸 Photo only, no sensors...")
+        run_and_send([PYTHON_CMD, CAM_SCRIPT, "--photo-only"], t("capture_start_noS"))
         image_path = get_latest_image()
         if image_path:
             send_telegram_photo(image_path)
         else:
-            send_bot_message("❌ Kein Bild gefunden.")
+            send_bot_message(t("no_image"))
 
     elif text == "/temp":
-        print("🌡️ Sensorabfrage via Telegram...")
-        run_and_send([PYTHON_CMD, CAM_SCRIPT, "--sensors-only"], "🌡️ Lese Sensorwerte aus...")
+        print("🌡️ Sensor query via Telegram...")
+        run_and_send([PYTHON_CMD, CAM_SCRIPT, "--sensors-only"], t("reading_sensors"))
 
     elif text == "/lapse":
-        print("🎞️ Timelapse-Versand via Telegram...")
-        send_bot_message("📤 Sende Timelapse...")
+        print("🎞️ Timelapse send via Telegram...")
+        send_bot_message(t("send_timelapse"))
         send_video(TIMELAPSE_VIDEO)
 
     elif command_base in {"/heater", "/heizung", "/exhaust", "/abluft", "/light", "/licht"}:
         device_map = {
-            "/heater":   ("heater",  "🔥 Heizung"),
-            "/heizung":  ("heater",  "🔥 Heizung"),
-            "/exhaust":  ("exhaust", "💨 Abluft"),
-            "/abluft":   ("exhaust", "💨 Abluft"),
-            "/light":    ("light",   "💡 Licht"),
-            "/licht":    ("light",   "💡 Licht"),
+            "/heater":  ("heater",  t("heater_label")),
+            "/heizung": ("heater",  t("heater_label")),
+            "/exhaust": ("exhaust", t("exhaust_label")),
+            "/abluft":  ("exhaust", t("exhaust_label")),
+            "/light":   ("light",   t("light_label")),
+            "/licht":   ("light",   t("light_label")),
         }
         action_name, label = device_map[command_base]
         arg = command_args.lower().strip()
         if arg in {"on", "ein", "an", "1"}:
             result = _dashboard_action(action_name, "on")
-            send_bot_message(result.get("message") or result.get("error") or f"{label} EIN-Befehl gesendet.")
+            send_bot_message(result.get("message") or result.get("error") or t("cmd_on_sent", label=label))
         elif arg in {"off", "aus", "0"}:
             result = _dashboard_action(action_name, "off")
-            send_bot_message(result.get("message") or result.get("error") or f"{label} AUS-Befehl gesendet.")
+            send_bot_message(result.get("message") or result.get("error") or t("cmd_off_sent", label=label))
         else:
             result = _dashboard_action(f"{action_name}_state")
             if result.get("error"):
@@ -795,19 +773,19 @@ def handle_message(message):
             else:
                 state = result.get(f"{action_name}_state")
                 power = result.get("power_w")
-                state_icon = {"ON": "🟢 AN", "OFF": "🔴 AUS"}.get(state, f"❓ {state or 'unbekannt'}")
+                state_icon = {"ON": t("state_on"), "OFF": t("state_off")}.get(state, f"❓ {state or t('state_unknown')}")
                 power_str = f"  ({power:.0f}W)" if power is not None else ""
-                send_bot_message(f"{label}: {state_icon}{power_str}\n\nTipp: /{action_name} on  oder  /{action_name} off")
+                send_bot_message(f"{label}: {state_icon}{power_str}\n\n{t('device_tip', cmd=action_name)}")
 
     else:
-        send_bot_message("🤖 Unbekannter Befehl. Nutze /foto, /foto_only, /temp, /lapse, /water, /info, /fert, /fert_set, /flower, /veg, /heater, /abluft, /licht oder /logs cam.")
-        print(f"ℹ️ Unbekannter Befehl: {text}")
+        send_bot_message(t("unknown_command"))
+        print(f"ℹ️ Unknown command: {text}")
 
 
-# === Main Loop ===
+# === Main loop ===
 def main():
     global LAST_UPDATE_ID
-    print("🤖 Warte auf Telegram-Kommandos...")
+    print(t("bot_ready"))
     while True:
         try:
             updates = get_updates()
@@ -819,7 +797,7 @@ def main():
                     handle_message(message)
                 LAST_UPDATE_ID = update_id
         except Exception as e:
-            print(f"❌ Fehler beim Polling: {e}")
+            print(t("polling_error", exc=e))
             time.sleep(CHECK_INTERVAL)
 
 if __name__ == "__main__":

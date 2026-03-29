@@ -13,6 +13,7 @@ import json
 import re
 import subprocess
 import argparse
+from lang import t
 import asyncio
 import math
 import sqlite3
@@ -71,7 +72,7 @@ def load_grow_settings() -> Dict[str, str | int]:
             for key in ("camera_focus", "camera_exposure", "camera_brightness", "camera_contrast", "camera_saturation", "camera_sharpness"):
                 default_settings[key] = int(app_settings.get(key, default_settings[key]) or default_settings[key])
     except Exception as exc:
-        print(f"⚠️ Konnte grow_data.json nicht lesen: {exc}")
+        print(f"⚠️ Could not read grow_data.json: {exc}")
     return default_settings
 
 
@@ -94,8 +95,8 @@ CAMERA_SATURATION = int(GROW_SETTINGS["camera_saturation"])
 CAMERA_SHARPNESS = int(GROW_SETTINGS["camera_sharpness"])
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEFAULT_IMAGES_DIR = os.path.join(SCRIPT_DIR, "images")  # Für Telegram
-TIMELAPSE_IMAGES_DIR = os.path.join(SCRIPT_DIR, "timelapse")  # Für Cron
+DEFAULT_IMAGES_DIR = os.path.join(SCRIPT_DIR, "images")    # used for Telegram photo mode
+TIMELAPSE_IMAGES_DIR = os.path.join(SCRIPT_DIR, "timelapse")  # used for cron timelapse
 COUNTER_FILE = os.path.join(SCRIPT_DIR, "counter.json")
 SENSOR_DB = os.path.join(SCRIPT_DIR, "sensor_data.db")
 
@@ -118,7 +119,7 @@ def init_sensor_db():
                 "CREATE INDEX IF NOT EXISTS idx_sensor_ts ON sensor_readings(timestamp)"
             )
     except Exception as exc:
-        print(f"⚠️ Konnte Sensor-Datenbank nicht initialisieren: {exc}")
+        print(f"⚠️ Could not initialise sensor database: {exc}")
 
 
 def store_sensor_reading(timestamp_iso: str, temperature: float | None, humidity: float | None):
@@ -131,14 +132,14 @@ def store_sensor_reading(timestamp_iso: str, temperature: float | None, humidity
                 (timestamp_iso, temperature, humidity),
             )
     except Exception as exc:
-        print(f"⚠️ Konnte Sensorwerte nicht speichern: {exc}")
+        print(f"⚠️ Could not save sensor reading: {exc}")
 
 
 init_sensor_db()
 
 # SwitchBot-Sensor
 SWITCHBOT_MAC = str(GROW_SETTINGS["switchbot_mac"])
-SENSOR_TIMEOUT = int(GROW_SETTINGS["switchbot_scan_timeout"])  # Sekunden für BLE-Scan
+SENSOR_TIMEOUT = int(GROW_SETTINGS["switchbot_scan_timeout"])  # BLE scan timeout in seconds
 
 # Lockfile
 LOCKFILE = "/tmp/cam.lock"
@@ -271,29 +272,28 @@ class SwitchBotBLEScanner:
             
             if any(result[key] is not None for key in ['temperature', 'humidity']):
                 self.sensor_data = result
-                print(f"📡 SwitchBot gefunden!")
+                print("📡 SwitchBot found!")
 
 
 def parse_arguments():
     parser = argparse.ArgumentParser(
-        description="PlantWatch mit SwitchBot-Sensor und Timelapse-Unterstützung",
+        description="PlantWatch with SwitchBot sensor and timelapse support",
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
-Beispiele:
-  python cam.py                     # Sensoren + Foto (Telegram-Modus)
-  python cam.py --photo-only        # Nur Foto (Telegram oder Cron)
-  python cam.py --sensors-only      # Nur Sensorwerte anzeigen
-  python cam.py --photo-only --timelapse   # Foto für Timelapse (Cron-Modus)
+Examples:
+  python cam.py                     # Sensors + photo (Telegram mode)
+  python cam.py --photo-only        # Photo only (Telegram or cron)
+  python cam.py --sensors-only      # Show sensor values only
+  python cam.py --photo-only --timelapse   # Photo for timelapse (cron mode)
         """
     )
     group = parser.add_mutually_exclusive_group()
-    group.add_argument('--photo-only', action='store_true', help='Nur Foto aufnehmen (Sensorwerte = "none")')
-    group.add_argument('--sensors-only', action='store_true', help='Nur Sensorwerte anzeigen, kein Foto')
-    parser.add_argument('--timelapse', action='store_true', help='Speichere Bild im Timelapse-Ordner (für Cron)')
+    group.add_argument('--photo-only', action='store_true', help='Capture photo only (sensor values = "none")')
+    group.add_argument('--sensors-only', action='store_true', help='Show sensor values only, no photo')
+    parser.add_argument('--timelapse', action='store_true', help='Save image to timelapse folder (for cron)')
 
-    # NEW: stage argument
     parser.add_argument('--stage', choices=['earlyveg', 'veg', 'earlyflower', 'flower'],
-                        help='Pflanzenstadium für VPD-Bewertung')
+                        help='Plant stage for VPD assessment')
 
     return parser.parse_args()
 
@@ -311,17 +311,17 @@ def suggest_vpd_adjustment(vpd, stage):
         return None
     low, high = OPTIMAL_VPD[stage]
     if vpd < low:
-        return f"🔼 VPD ist zu niedrig (optimal {low}-{high} kPa). → Senke Luftfeuchtigkeit oder erhöhe Temperatur."
+        return t("vpd_too_low", low=low, high=high)
     elif vpd > high:
-        return f"🔽 VPD ist zu hoch (optimal {low}-{high} kPa). → Erhöhe Luftfeuchtigkeit oder senke Temperatur."
+        return t("vpd_too_high", low=low, high=high)
     else:
-        return f"✅ VPD liegt im optimalen Bereich für {stage} ({low}-{high} kPa)."
+        return t("vpd_optimal", stage=stage, low=low, high=high)
 
 
 async def read_switchbot_values(mac=SWITCHBOT_MAC, timeout=SENSOR_TIMEOUT):
     """Read temperature and humidity from SwitchBot via BLE."""
     try:
-        print(f"🌡️ Lese SwitchBot-Sensor ({mac})...")
+        print(f"🌡️ Reading SwitchBot sensor ({mac})...")
         scanner = SwitchBotBLEScanner(mac)
         
         async with BleakScanner(detection_callback=scanner.on_advertisement_received):
@@ -336,12 +336,12 @@ async def read_switchbot_values(mac=SWITCHBOT_MAC, timeout=SENSOR_TIMEOUT):
             hum = scanner.sensor_data['humidity']
             return temp, hum
         elif scanner.found_device:
-            print("⚠️ SwitchBot gefunden, aber keine gültigen Sensordaten erhalten.")
+            print("⚠️ SwitchBot found but no valid sensor data received.")
         else:
-            print("⚠️ SwitchBot nicht gefunden. Gerät in Reichweite und aktiv?")
-            
+            print("⚠️ SwitchBot not found. Is the device nearby and active?")
+
     except Exception as e:
-        print(f"❌ Fehler beim SwitchBot-Sensorabruf: {e}")
+        print(f"❌ Error reading SwitchBot sensor: {e}")
     
     return None, None
 
@@ -361,7 +361,7 @@ def read_switchbot_values_sync(mac=SWITCHBOT_MAC):
         else:
             return asyncio.run(read_switchbot_values(mac))
     except Exception as e:
-        print(f"❌ Fehler beim Starten des BLE-Scans: {e}")
+        print(f"❌ Error starting BLE scan: {e}")
         return None, None
 
 
@@ -373,38 +373,38 @@ def get_german_timestamp():
 def display_sensor_values(stage=None):
     """Display current sensor readings with calculated values and VPD check."""
     temp, hum = read_switchbot_values_sync()
-    print("\n📊 SwitchBot Sensorwerte\n")
+    print(f"\n{t('sensor_header')}\n")
     if temp is not None and hum is not None:
-        print(f"🌡️ Temperatur: {temp:.1f}°C")
-        print(f"💧 Luftfeuchtigkeit: {hum:.1f}%")
-        print(f"🕐 Zeitstempel: {get_german_timestamp()}")
-        
+        print(t("sensor_temp", temp=temp))
+        print(t("sensor_humidity", hum=hum))
+        print(f"🕐 {get_german_timestamp()}")
+
         decoder = SwitchBotOutdoorMeterDecoder(SWITCHBOT_MAC)
         abs_humidity = decoder.calculate_absolute_humidity(temp, hum)
         dew_point = decoder.calculate_dew_point(temp, hum)
         vpd = decoder.calculate_vapor_pressure_deficit(temp, hum)
-        
-        print(f"\n📈 Berechnete Werte:")
-        print(f"💨 Absolute Luftfeuchtigkeit: {abs_humidity} g/m³")
-        print(f"🌊 Taupunkt: {dew_point}°C")
-        print(f"📊 VPD (Sättigungsdefizit): {vpd} kPa")
-        
+
+        print(f"\n{t('sensor_calculated')}")
+        print(t("sensor_abs_humidity", v=abs_humidity))
+        print(t("sensor_dew_point", v=dew_point))
+        print(t("sensor_vpd", v=vpd))
+
         if stage:
             suggestion = suggest_vpd_adjustment(vpd, stage)
             if suggestion:
-                print("\n🌱 VPD-Check basierend auf Stadium:")
+                print(f"\n{t('sensor_vpd_check')}")
                 print(suggestion)
     else:
-        print("❌ Sensorwerte konnten nicht gelesen werden.")
+        print(t("sensor_no_data"))
 
 
 def capture_photo(temp=None, hum=None):
     """Capture a photo with optional sensor data in filename."""
     try:
-        print("📸 Starte Fotoaufnahme...")
+        print("📸 Starting photo capture...")
         cap = cv2.VideoCapture(0)
         if not cap.isOpened():
-            raise RuntimeError("USB-Kamera konnte nicht geöffnet werden (/dev/video0).")
+            raise RuntimeError("Could not open USB camera (/dev/video0).")
 
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 2592)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 1944)
@@ -414,7 +414,7 @@ def capture_photo(temp=None, hum=None):
         final_camera_settings = read_camera_settings(cap)
         cap.release()
         if not ret or frame is None:
-            raise RuntimeError("Kein Bild von der USB-Kamera erhalten.")
+            raise RuntimeError("No frame received from USB camera.")
 
         rotation_base = TIMELAPSE_ROTATION_DEGREES if IMAGES_DIR == TIMELAPSE_IMAGES_DIR else PHOTO_ROTATION_DEGREES
         rotation = rotation_base % 360
@@ -433,7 +433,7 @@ def capture_photo(temp=None, hum=None):
         filename = f"{IMAGES_DIR}/{timestamp}_{safe_grow}_{temp_str}_{hum_str}.jpg"
 
         if not cv2.imwrite(filename, frame):
-            raise RuntimeError("Speichern des Bildes ist fehlgeschlagen.")
+            raise RuntimeError("Failed to save image.")
 
         if temp is not None or hum is not None:
             store_sensor_reading(now.isoformat(), temp, hum)
@@ -442,7 +442,7 @@ def capture_photo(temp=None, hum=None):
         print(f"CAMERA_FINAL_SETTINGS={json.dumps(final_camera_settings, ensure_ascii=True)}")
         return filename
     except Exception as e:
-        print(f"❌ Fehler bei Fotoaufnahme: {str(e)}")
+        print(f"❌ Photo capture error: {str(e)}")
         return None
 
 
@@ -463,33 +463,33 @@ def remove_lock():
 def set_camera_property(cap, prop, value, label):
     try:
         ok = cap.set(prop, value)
-        print(f"{'✅' if ok else '⚠️'} Kamera {label}: {value}")
+        print(f"{'✅' if ok else '⚠️'} Camera {label}: {value}")
     except Exception as exc:
-        print(f"⚠️ Kamera {label} konnte nicht gesetzt werden: {exc}")
+        print(f"⚠️ Camera {label} could not be set: {exc}")
 
 
 def apply_camera_settings(cap):
-    set_camera_property(cap, cv2.CAP_PROP_AUTOFOCUS, 1 if CAMERA_AUTO_FOCUS else 0, "Autofokus")
+    set_camera_property(cap, cv2.CAP_PROP_AUTOFOCUS, 1 if CAMERA_AUTO_FOCUS else 0, "Autofocus")
     if not CAMERA_AUTO_FOCUS and CAMERA_FOCUS >= 0:
-        set_camera_property(cap, cv2.CAP_PROP_FOCUS, CAMERA_FOCUS, "Fokus")
+        set_camera_property(cap, cv2.CAP_PROP_FOCUS, CAMERA_FOCUS, "Focus")
 
     if CAMERA_AUTO_EXPOSURE:
         for value in (3, 0.75):
-            set_camera_property(cap, cv2.CAP_PROP_AUTO_EXPOSURE, value, "Auto-Belichtung")
+            set_camera_property(cap, cv2.CAP_PROP_AUTO_EXPOSURE, value, "Auto-Exposure")
     else:
         for value in (1, 0.25):
-            set_camera_property(cap, cv2.CAP_PROP_AUTO_EXPOSURE, value, "Manuelle Belichtung")
+            set_camera_property(cap, cv2.CAP_PROP_AUTO_EXPOSURE, value, "Manual Exposure")
         if CAMERA_EXPOSURE >= 0:
-            set_camera_property(cap, cv2.CAP_PROP_EXPOSURE, CAMERA_EXPOSURE, "Belichtung")
+            set_camera_property(cap, cv2.CAP_PROP_EXPOSURE, CAMERA_EXPOSURE, "Exposure")
 
     if CAMERA_BRIGHTNESS >= 0:
-        set_camera_property(cap, cv2.CAP_PROP_BRIGHTNESS, CAMERA_BRIGHTNESS, "Helligkeit")
+        set_camera_property(cap, cv2.CAP_PROP_BRIGHTNESS, CAMERA_BRIGHTNESS, "Brightness")
     if CAMERA_CONTRAST >= 0:
-        set_camera_property(cap, cv2.CAP_PROP_CONTRAST, CAMERA_CONTRAST, "Kontrast")
+        set_camera_property(cap, cv2.CAP_PROP_CONTRAST, CAMERA_CONTRAST, "Contrast")
     if CAMERA_SATURATION >= 0:
-        set_camera_property(cap, cv2.CAP_PROP_SATURATION, CAMERA_SATURATION, "Sättigung")
+        set_camera_property(cap, cv2.CAP_PROP_SATURATION, CAMERA_SATURATION, "Saturation")
     if hasattr(cv2, "CAP_PROP_SHARPNESS") and CAMERA_SHARPNESS >= 0:
-        set_camera_property(cap, cv2.CAP_PROP_SHARPNESS, CAMERA_SHARPNESS, "Schärfe")
+        set_camera_property(cap, cv2.CAP_PROP_SHARPNESS, CAMERA_SHARPNESS, "Sharpness")
 
 
 def read_camera_settings(cap):
@@ -581,17 +581,17 @@ def latest_timelapse_capture_time() -> Optional[datetime]:
 
 def should_capture_timelapse() -> bool:
     if not TIMELAPSE_ENABLED:
-        print("⏭️ Timelapse deaktiviert.")
+        print("⏭️ Timelapse disabled.")
         return False
     now = datetime.now(ZoneInfo("Europe/Berlin"))
     if TIMELAPSE_LIGHT_ONLY and not time_in_window(now, LIGHTS_ON_START, LIGHTS_ON_END):
-        print("⏭️ Timelapse nur bei Licht an aktiv.")
+        print("⏭️ Timelapse active only when lights are on.")
         return False
     latest = latest_timelapse_capture_time()
     if latest is not None:
         elapsed_seconds = (now - latest).total_seconds()
         if elapsed_seconds < TIMELAPSE_INTERVAL_MINUTES * 60:
-            print(f"⏭️ Timelapse-Intervall noch nicht erreicht ({int(elapsed_seconds // 60)} / {TIMELAPSE_INTERVAL_MINUTES} min).")
+            print(f"⏭️ Timelapse interval not reached yet ({int(elapsed_seconds // 60)} / {TIMELAPSE_INTERVAL_MINUTES} min).")
             return False
     return True
 
@@ -601,7 +601,6 @@ def main():
 
     args = parse_arguments()
 
-    # Zielordner wählen
     IMAGES_DIR = TIMELAPSE_IMAGES_DIR if args.timelapse else DEFAULT_IMAGES_DIR
     ensure_images_directory()
 
@@ -613,7 +612,7 @@ def main():
         return
 
     if not args.sensors_only and is_locked():
-        print("⏳ cam.py läuft bereits. Abbruch.")
+        print("⏳ cam.py is already running. Aborting.")
         sys.exit(0)
 
     create_lock()
@@ -654,7 +653,7 @@ def ensure_images_directory():
             os.makedirs(IMAGES_DIR)
             print(f"📁 Ordner erstellt: {IMAGES_DIR}")
         except PermissionError:
-            print(f"❌ Keine Berechtigung für {IMAGES_DIR}")
+            print(f"❌ No permission to write to {IMAGES_DIR}")
             sys.exit(1)
 
 

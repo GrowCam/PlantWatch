@@ -8,6 +8,7 @@ import os
 import json
 from datetime import datetime
 import requests
+from lang import t
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(SCRIPT_DIR, "grow_data.json")
@@ -34,7 +35,7 @@ def send_telegram(text):
     token = os.getenv("TELEGRAM_BOT_TOKEN")
     chat_id = os.getenv("TELEGRAM_CHAT_ID")
     if not token or not chat_id:
-        print("⚠️ TELEGRAM_BOT_TOKEN oder TELEGRAM_CHAT_ID fehlen – keine Nachricht gesendet.")
+        print(t("missing_telegram_creds"))
         return
 
     url = f"https://api.telegram.org/bot{token}/sendMessage"
@@ -42,20 +43,20 @@ def send_telegram(text):
     try:
         resp = requests.post(url, data=payload, timeout=10)
         if not resp.ok:
-            print(f"❌ Telegram-Fehler: {resp.text}")
+            print(t("telegram_error", text=resp.text))
     except Exception as exc:
-        print(f"❌ Fehler beim Senden der Erinnerung: {exc}")
+        print(t("send_reminder_error", exc=exc))
 
 
 def load_last_watering():
     if not os.path.exists(DATA_FILE):
-        print("⚠️ grow_data.json nicht gefunden.")
+        print(t("no_data_file"))
         return None
     try:
         with open(DATA_FILE, "r", encoding="utf-8") as f:
             data = json.load(f)
     except Exception as exc:
-        print(f"❌ Konnte grow_data.json nicht lesen: {exc}")
+        print(t("data_read_error", exc=exc))
         return None
     return data.get("last_watering")
 
@@ -70,23 +71,20 @@ def main():
 
     last_watering_str = load_last_watering()
     if not last_watering_str:
-        print("ℹ️ Kein last_watering Datum vorhanden – Erinnerung übersprungen.")
+        print(t("no_watering_date"))
         return
 
     try:
         last_watering = datetime.strptime(last_watering_str, "%Y-%m-%d").date()
     except ValueError:
-        print(f"❌ Ungültiges last_watering Datum: {last_watering_str}")
+        print(t("invalid_watering_date", date=last_watering_str))
         return
 
     days_since = (datetime.now().date() - last_watering).days
     if days_since > max_days:
-        send_telegram(
-            f"💧 Erinnerung: Die letzte Bewässerung liegt {days_since} Tage zurück. "
-            "Bitte prüfen, ob gegossen werden muss."
-        )
+        send_telegram(t("watering_reminder", days=days_since))
     else:
-        print(f"ℹ️ Letzte Bewässerung vor {days_since} Tagen – keine Erinnerung nötig.")
+        print(t("no_reminder_needed", days=days_since))
 
 
 if __name__ == "__main__":

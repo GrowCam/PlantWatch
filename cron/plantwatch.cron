@@ -1,5 +1,5 @@
-# Timelapse-Prüfung alle 5 Minuten, tatsächliches Capture über App-Settings gesteuert
+# Timelapse capture every 5 minutes (actual capture controlled by app settings)
 */5 * * * * __INSTALL_DIR__/.venv/bin/python __INSTALL_DIR__/cam.py --timelapse >> __INSTALL_DIR__/cam_timelapse.log 2>&1
 
-# Bewässerungs-Check einmal täglich (16:45)
+# Watering reminder check once daily at 16:45
 45 16 * * * __INSTALL_DIR__/.venv/bin/python __INSTALL_DIR__/check_watering.py >> __INSTALL_DIR__/check_watering.log 2>&1

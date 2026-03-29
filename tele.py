@@ -1,17 +1,17 @@
 #!/usr/bin/env python3
 """
 Daily Image Sender Script
-Sends the latest timelapse image from /images folder via Telegram
-Runs daily at 7AM via cronjob
+Sends the latest timelapse image from /images folder via Telegram.
+Runs daily at 7AM via cronjob.
 """
 
 import os
-import re
 import sys
 import glob
 import requests
 from datetime import datetime
 from dotenv import load_dotenv
+from lang import t
 
 load_dotenv(os.path.join(os.path.dirname(os.path.abspath(__file__)), ".env"))
 
@@ -25,41 +25,35 @@ IMAGES_DIR = os.path.join(SCRIPT_DIR, "images")
 
 
 def get_latest_image():
-    """Find the most recent image in the /images directory"""
+    """Find the most recent image in the /images directory."""
     try:
-        # Get all jpg files in the images directory
         image_files = glob.glob(os.path.join(IMAGES_DIR, "*.jpg"))
-        
+
         if not image_files:
             print("No images found in /images directory")
             return None
-        
-        # Sort by modification time (most recent first)
+
         latest_image = max(image_files, key=os.path.getmtime)
-        
         print(f"Latest image found: {latest_image}")
         return latest_image
-        
+
     except Exception as e:
         print(f"Error finding latest image: {str(e)}")
         return None
 
 
 def send_telegram_photo(image_path):
-    """Send photo via Telegram Bot API with formatted caption"""
+    """Send photo via Telegram Bot API with formatted caption."""
     try:
         url = f"https://api.telegram.org/bot{BOT_TOKEN}/sendPhoto"
         filename = os.path.basename(image_path)
 
-        # Beispiel-Filenames:
-        # 26-05-2025-10:25:07_ForbiddenFruit_23.9C_53.8p.jpg
-        # 26-05-2025-10:25:07_ForbiddenFruit_noTemp_noHum.jpg
-
+        # Filename format: 26-05-2025-10:25:07_GrowName_23.9C_53.8p.jpg
         name_part = os.path.splitext(filename)[0]
         parts = name_part.split('_')
 
         if len(parts) < 4:
-            print("❌ Dateiname konnte nicht erkannt werden.")
+            print("❌ Filename format not recognised.")
             return False
 
         timestamp = parts[0]
@@ -67,31 +61,27 @@ def send_telegram_photo(image_path):
         temp_raw = parts[2]
         hum_raw = parts[3]
 
-        # Datum/Zeit extrahieren
         try:
             date_obj = datetime.strptime(timestamp, "%d-%m-%Y-%H:%M:%S")
-            date_display = date_obj.strftime("%d/%m/%Y")
+            date_display = date_obj.strftime(t("date_format"))
             time_display = date_obj.strftime("%H:%M:%S")
         except Exception:
             date_display = timestamp
             time_display = "??:??:??"
 
-        # Temperatur/Luftfeuchte prüfen
-        temp = f"{temp_raw.replace('C', ' °C')}" if "noTemp" not in temp_raw else "nicht verfügbar"
-        hum = f"{hum_raw.replace('p', ' %')}" if "noHum" not in hum_raw else "nicht verfügbar"
+        temp = f"{temp_raw.replace('C', ' °C')}" if "noTemp" not in temp_raw else t("not_available")
+        hum = f"{hum_raw.replace('p', ' %')}" if "noHum" not in hum_raw else t("not_available")
 
-        # Aktuelle Zeit für „Gesendet am“
-        now = datetime.now().strftime("%d/%m/%Y um %H:%M Uhr")
+        now = datetime.now().strftime(t("datetime_format"))
 
-        # 📩 Telegram Caption mit Klima-Infos
         caption = (
-            "🌱 <b>Daily Grow Update</b> 📸\n\n"
-            f"<b>📅 Datum:</b> {date_display}\n"
-            f"<b>🕙 Zeit:</b> {time_display}\n"
-            f"<b>🌿 Grow:</b> {grow_name}\n"
-            f"<b>🌡 Temperatur:</b> {temp}\n"
-            f"<b>💧 Luftfeuchte:</b> {hum}\n\n"
-            f"<i>📤 Gesendet am {now}</i>"
+            f"🌱 <b>{t('daily_update_title')}</b> 📸\n\n"
+            f"<b>📅 {t('caption_date')}:</b> {date_display}\n"
+            f"<b>🕙 {t('caption_time')}:</b> {time_display}\n"
+            f"<b>🌿 {t('caption_grow')}:</b> {grow_name}\n"
+            f"<b>🌡 {t('caption_temp')}:</b> {temp}\n"
+            f"<b>💧 {t('caption_humidity')}:</b> {hum}\n\n"
+            f"<i>📤 {t('tele_caption_sent', dt=now)}</i>"
         )
 
         with open(image_path, 'rb') as photo:
@@ -118,15 +108,15 @@ def send_telegram_photo(image_path):
 
 
 def check_configuration():
-    """Check if Telegram bot is configured properly"""
+    """Check if Telegram bot is configured properly."""
     if not BOT_TOKEN or not CHAT_ID:
-        print("❌ Please configure your Telegram bot token and chat ID first!")
+        print(t("tele_not_configured"))
         print("\nSetup instructions:")
         print("1. Message @BotFather on Telegram")
         print("2. Create a new bot with /newbot command")
-        print("3. Copy the bot token to BOT_TOKEN variable")
+        print("3. Copy the bot token to TELEGRAM_BOT_TOKEN in .env")
         print("4. Message @userinfobot to get your chat ID")
-        print("5. Copy your chat ID to CHAT_ID variable")
+        print("5. Copy your chat ID to TELEGRAM_CHAT_ID in .env")
         return False
     return True
 
@@ -150,7 +140,7 @@ def main():
         sys.exit(1)
 
     if is_locked():
-        print("⏳ tele.py läuft bereits. Abbruch.")
+        print(t("tele_locked"))
         sys.exit(0)
 
     create_lock()
