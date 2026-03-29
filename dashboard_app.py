@@ -167,6 +167,12 @@ TRANSLATIONS = {
     "switchbot_mac": {"de": "SwitchBot MAC", "en": "SwitchBot MAC"},
     "switchbot_timeout": {"de": "BLE-Scan-Timeout (Sek.)", "en": "BLE scan timeout (sec)"},
     "switchbot_hint": {"de": "MAC-Adresse des Temperatur-/Feuchtesensors und Scan-Timeout für andere SwitchBot-Geräte.", "en": "Temperature/humidity sensor MAC address and scan timeout for other SwitchBot devices."},
+    "switchbot_scan_btn": {"de": "Sensor suchen", "en": "Scan for sensor"},
+    "switchbot_scanning": {"de": "Suche läuft… (bis zu 10 Sek.)", "en": "Scanning… (up to 10 sec)"},
+    "switchbot_no_devices": {"de": "Keine SwitchBot-Geräte gefunden. Bluetooth aktiv?", "en": "No SwitchBot devices found. Is Bluetooth enabled?"},
+    "switchbot_found": {"de": "Gefundene Geräte – tippen zum Auswählen:", "en": "Devices found — tap to select:"},
+    "switchbot_scan_error": {"de": "Scan fehlgeschlagen. Bluetooth aktiv und bleak installiert?", "en": "Scan failed. Is Bluetooth enabled and bleak installed?"},
+    "switchbot_not_set": {"de": "Kein Sensor ausgewählt", "en": "No sensor selected"},
     "save_settings": {"de": "Einstellungen speichern", "en": "Save settings"},
     "saved": {"de": "Gespeichert", "en": "Saved"},
     "on": {"de": "An", "en": "On"},
@@ -852,7 +858,7 @@ def save_app_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": "Entfeuchter-Topic darf nicht leer sein."}
     if settings["humidifier_enabled"] and not settings["humidifier_topic"]:
         return {"error": "Luftbefeuchter-Topic darf nicht leer sein."}
-    if not re.fullmatch(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}", settings["switchbot_mac"]):
+    if settings["switchbot_mac"] and not re.fullmatch(r"(?:[0-9A-F]{2}:){5}[0-9A-F]{2}", settings["switchbot_mac"]):
         return {"error": "Ungültige SwitchBot-MAC."}
     if settings["switchbot_scan_timeout"] < 3 or settings["switchbot_scan_timeout"] > 60:
         return {"error": "Ungültiger SwitchBot-Timeout."}
@@ -4837,6 +4843,29 @@ def api_humidity_debug():
 @app.route("/api/power-summary")
 def api_power_summary():
     return jsonify(get_power_summary())
+
+
+@app.route("/api/scan-switchbot")
+def api_scan_switchbot():
+    """Run a BLE scan and return nearby SwitchBot devices."""
+    try:
+        from bleak import BleakScanner  # type: ignore
+        import asyncio
+
+        async def _scan():
+            devices = await BleakScanner.discover(timeout=10)
+            return [
+                {"name": d.name, "address": d.address.upper()}
+                for d in devices
+                if d.name and ("SwitchBot" in d.name or "W3400010" in d.name)
+            ]
+
+        found = asyncio.run(_scan())
+        return jsonify({"devices": found})
+    except ImportError:
+        return jsonify({"error": "bleak not installed"}), 500
+    except Exception as exc:
+        return jsonify({"error": str(exc)}), 500
 
 
 @app.route("/api/action", methods=["POST"])
