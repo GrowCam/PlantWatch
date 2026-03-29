@@ -149,9 +149,11 @@
             <h3><span class="heading-emoji">🌡️</span>{{ tr('switchbot_settings') }}</h3>
           </summary>
           <small class="hint-text">{{ tr('switchbot_hint') }}</small>
-          <button type="button" id="switchbotScanBtn" class="ghost small">📡 {{ tr('switchbot_scan_btn') }}</button>
+          <div class="card-actions">
+            <button type="button" id="switchbotScanBtn" class="ghost small">📡 {{ tr('switchbot_scan_btn') }}</button>
+          </div>
           <small class="hint-text" id="switchbotScanMsg" hidden></small>
-          <div class="btn-group" id="switchbotDeviceList" hidden></div>
+          <div class="card-actions" id="switchbotDeviceList" hidden></div>
           <label for="switchbotMac">{{ tr('switchbot_mac') }}</label>
           <input type="text" id="switchbotMac" value="{{ app_settings.switchbot_mac }}" spellcheck="false" autocomplete="off" placeholder="AA:BB:CC:DD:EE:FF" />
           <label for="switchbotScanTimeout">{{ tr('switchbot_timeout') }}</label>
@@ -344,7 +346,7 @@
                 const deviceBtn = document.createElement("button");
                 deviceBtn.type = "button";
                 deviceBtn.className = "ghost small";
-                deviceBtn.textContent = `${d.name} — ${d.address}`;
+                deviceBtn.textContent = `${d.name}  ${d.address}`;
                 deviceBtn.addEventListener("click", () => {
                   document.getElementById("switchbotMac").value = d.address;
                   listDiv.hidden = true;
