@@ -1994,8 +1994,8 @@ def get_live_sensor_reading() -> Dict[str, Any] | None:
         return None
 
     output = "\n".join(part for part in (result.stdout, result.stderr) if part).strip()
-    temp_match = re.search(r"Temperatur:\s*(-?\d+(?:[.,]\d+)?)°C", output)
-    hum_match = re.search(r"Luftfeuchtigkeit:\s*(\d+(?:[.,]\d+)?)%", output)
+    temp_match = re.search(r"Temperatur[e]?:\s*(-?\d+(?:[.,]\d+)?)°C", output)
+    hum_match = re.search(r"(?:Luftfeuchtigkeit|Humidity):\s*(\d+(?:[.,]\d+)?)%", output)
     if not temp_match:
         print("[heater-controller] Live-Sensor lieferte keine Temperatur.", flush=True)
         return None
