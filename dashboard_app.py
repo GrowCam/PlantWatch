@@ -1500,14 +1500,22 @@ def _send_telegram_worker(bot_token: str, chat_id: str, text: str) -> None:
     """Runs in a background thread so Telegram failures never block automation loops."""
     url = f"https://api.telegram.org/bot{bot_token}/sendMessage"
     payload = {"chat_id": chat_id, "text": text, "parse_mode": "HTML"}
-    try:
-        response = requests.post(url, data=payload, timeout=10)
-        if response.ok:
-            append_bot_log("OUT", text)
-        else:
-            print(f"[telegram] Fehler: {response.status_code} {response.text[:200]}", flush=True)
-    except Exception as exc:
-        print(f"[telegram] Sendefehler: {exc}", flush=True)
+    for attempt in range(3):
+        if attempt > 0:
+            time.sleep(2 ** attempt)
+        try:
+            response = requests.post(url, data=payload, timeout=10)
+            if response.ok:
+                append_bot_log("OUT", text)
+                return
+            else:
+                print(f"[telegram] Fehler: {response.status_code} {response.text[:200]}", flush=True)
+                return
+        except requests.exceptions.ConnectionError as exc:
+            print(f"[telegram] Sendefehler (Versuch {attempt + 1}/3): {exc}", flush=True)
+        except Exception as exc:
+            print(f"[telegram] Sendefehler: {exc}", flush=True)
+            return
 
 
 def send_telegram_notification(text: str) -> None:
