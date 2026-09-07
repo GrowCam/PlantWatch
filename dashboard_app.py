@@ -5031,15 +5031,24 @@ def currency_symbol(code: str | None = None) -> str:
 
 
 def get_pump_cards() -> List[Dict[str, Any]]:
+    sensors_by_tent: Dict[str, str] = {}
+    for sensor in get_water_sensors():
+        if sensor.get("enabled") and sensor.get("tent_id"):
+            sensors_by_tent.setdefault(sensor["tent_id"], sensor["id"])
+
     cards = []
     for pump in get_pumps():
         if not pump.get("enabled") or not pump.get("topic"):
             continue
+        # Display fallback only: if no sensor was explicitly assigned to this pump,
+        # show the status of a sensor sharing the pump's tent. Auto-watering still
+        # requires an explicit sensor_id (see WaterAutomationController._control_once).
+        display_sensor_id = pump.get("sensor_id") or sensors_by_tent.get(pump.get("tent_id"))
         cards.append({
             "id": pump["id"],
             "name": pump.get("name") or tr("pump_default_label").format(n=pump["id"]),
             "tent_id": pump.get("tent_id"),
-            "sensor_id": pump.get("sensor_id"),
+            "sensor_id": display_sensor_id,
             "auto_water_enabled": bool(pump.get("auto_water_enabled")),
             "active_preset_id": pump.get("active_preset_id"),
         })
