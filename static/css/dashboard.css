@@ -13,6 +13,10 @@
   --fs-3: 0.95rem;
   --fs-4: 0.82rem;
   --fs-5: 0.74rem;
+  --grid-cols-mobile: 1;
+  --grid-cols-tablet: 2;
+  --grid-cols-desktop: 3;
+  --grid-cols-wide: 4;
 }
 
 body[data-theme="dark-blue"] {
@@ -772,6 +776,11 @@ body[data-theme="light"] .menu-drag-handle {
   min-width: 0;
 }
 
+.slider-field.field-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+
 input[type="range"] {
   width: 100%;
   margin: 0;
@@ -852,15 +861,23 @@ input[type="range"] {
 .grid {
   display: grid;
   gap: 20px;
+  grid-auto-flow: dense;
+  --cols: var(--grid-cols-mobile);
+  grid-template-columns: repeat(var(--cols), minmax(0, 1fr));
+}
+
+@media (min-width: 600px) {
+  .grid { --cols: var(--grid-cols-tablet); }
+}
+@media (min-width: 901px) {
+  .grid { --cols: var(--grid-cols-desktop); }
+}
+@media (min-width: 1300px) {
+  .grid { --cols: var(--grid-cols-wide); }
 }
 
 .stats {
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   align-items: stretch;
-}
-
-.card-span-wide {
-  grid-column: span 2;
 }
 
 #systemStatusList {
@@ -869,23 +886,28 @@ input[type="range"] {
 }
 
 .media-top {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   align-items: start;
 }
 
 .logs {
-  grid-template-columns: 1fr;
+  --cols: 1;
 }
 
 .fert-section {
-  grid-template-columns: 1fr;
+  --cols: 1;
 }
 
 .watering-primary-grid,
 .watering-secondary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 280px), 420px));
   justify-content: start;
   align-items: start;
+}
+
+.watering-primary-grid > .card,
+.watering-primary-grid > details.card,
+.watering-secondary-grid > .card,
+.watering-secondary-grid > details.card {
+  max-width: 420px;
 }
 
 .reservoir-card {
@@ -896,35 +918,27 @@ input[type="range"] {
   order: 1;
 }
 
-.climate-grid {
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-}
-
 .stat-card .info-list {
   gap: 8px;
 }
 
 .climate-summary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
   gap: 14px;
   align-items: start;
 }
 
 .power-summary-grid {
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
   align-items: start;
 }
 
 .climate-device-grid,
 .climate-config-grid,
 .climate-debug-grid {
-  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
   gap: 14px;
   align-items: start;
 }
 
 .power-chart-grid {
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
   align-items: start;
 }
 
@@ -990,6 +1004,7 @@ input[type="range"] {
 }
 
 .card {
+  position: relative;
   background: var(--bg-card);
   padding: 20px;
   border-radius: 24px;
@@ -997,6 +1012,11 @@ input[type="range"] {
   display: flex;
   flex-direction: column;
   gap: 16px;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+details.card {
+  position: relative;
 }
 
 .card-toggle-header {
@@ -1074,30 +1094,43 @@ input[type="range"] {
   color: var(--text);
 }
 
-.card-span-toggle {
+.card-resize-handle {
   appearance: none;
+  position: absolute;
+  right: 6px;
+  bottom: 6px;
+  z-index: 1;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.04);
   color: var(--muted);
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
   border-radius: 50%;
   display: none;
   align-items: center;
   justify-content: center;
-  font-size: 1.1rem;
+  font-size: 1rem;
   line-height: 1;
-  cursor: pointer;
+  cursor: nwse-resize;
   flex: 0 0 auto;
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
   transition: background 0.2s, border-color 0.2s, color 0.2s;
 }
 
-.card-span-toggle:hover,
-.card-span-toggle.is-active {
+.card-resize-handle:hover {
   background: color-mix(in srgb, var(--accent) 18%, rgba(255, 255, 255, 0.06));
   border-color: color-mix(in srgb, var(--accent) 40%, transparent);
   color: var(--text);
+}
+
+@media (max-width: 599px) {
+  .card-resize-handle {
+    display: none !important;
+  }
 }
 
 .card-toggle-button::before {
@@ -1137,14 +1170,15 @@ body[data-theme="light"] .card-drag-handle {
   background: rgba(21, 32, 43, 0.05);
 }
 
-body[data-theme="light"] .card-span-toggle {
+body[data-theme="light"] .card-resize-handle {
   border-color: rgba(21, 32, 43, 0.12);
   background: rgba(21, 32, 43, 0.05);
 }
 
-body[data-theme="light"] .card-span-toggle:hover,
-body[data-theme="light"] .card-span-toggle.is-active {
+body[data-theme="light"] .card-resize-handle:hover {
   background: color-mix(in srgb, var(--accent) 14%, rgba(21, 32, 43, 0.08));
+  border-color: color-mix(in srgb, var(--accent) 36%, rgba(21, 32, 43, 0.16));
+  color: var(--text);
 }
 
 body[data-theme="light"] .card-drag-handle:hover,
@@ -1176,66 +1210,95 @@ body[data-theme="light"] .card-drag-handle:active {
   box-shadow: 0 6px 18px rgba(20, 184, 166, 0.28);
 }
 
-/* Mobile topbar icon button for edit mode */
-.lei-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 36px;
-  height: 36px;
-  min-width: 36px;
-  border-radius: 10px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(255, 255, 255, 0.06);
-  color: var(--text);
-  font-size: 1.1rem;
-  cursor: pointer;
-  flex-shrink: 0;
-  transition: background 0.2s, border-color 0.2s, box-shadow 0.2s;
-}
-
-.lei-btn[aria-pressed="true"] {
+/* Mobile FAB entry point for edit mode (hidden while already editing) */
+.layout-fab {
+  display: none;
+  position: fixed;
+  right: 20px;
+  bottom: 90px;
+  z-index: 4600;
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  border: none;
   background: linear-gradient(135deg, var(--accent), var(--accent-2));
   color: #fff;
-  border-color: transparent;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 35%, transparent);
+  font-size: 1.3rem;
+  cursor: pointer;
+  box-shadow: 0 10px 28px color-mix(in srgb, var(--accent) 40%, rgba(0, 0, 0, 0.3));
 }
 
-body[data-theme="light"] .lei-btn {
-  border-color: rgba(21, 32, 43, 0.16);
-  background: rgba(255, 255, 255, 0.62);
-  color: var(--text);
+@media (max-width: 900px) {
+  .layout-fab {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+  }
 }
 
-/* Layout edit mode: top banner */
-.layout-edit-banner {
+body.layout-edit-mode .layout-fab {
   display: none;
-  position: sticky;
-  top: 0;
-  z-index: 2400;
-  background: linear-gradient(90deg, color-mix(in srgb, var(--accent) 14%, transparent), color-mix(in srgb, var(--accent-2) 12%, transparent));
+}
+
+/* Bottom action bar shown only while editing (mobile + desktop) */
+.layout-edit-actionbar {
+  display: none;
+  position: fixed;
+  left: 50%;
+  bottom: 16px;
+  transform: translateX(-50%);
+  z-index: 4600;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--bg-card) 92%, transparent);
   border: 1px solid color-mix(in srgb, var(--accent) 28%, transparent);
-  border-radius: 12px;
-  padding: 7px 14px;
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(10px);
+  max-width: calc(100vw - 32px);
+}
+
+body.layout-edit-mode .layout-edit-actionbar {
+  display: flex;
+}
+
+.layout-edit-actionbar-label {
   font-size: var(--fs-4);
   font-weight: 600;
   color: var(--accent);
-  text-align: center;
-  letter-spacing: 0.02em;
-  backdrop-filter: blur(8px);
-  margin-bottom: 4px;
-  user-select: none;
+  padding: 0 4px;
+  white-space: nowrap;
 }
 
-body.layout-edit-mode .layout-edit-banner {
-  display: block;
+body[data-theme="light"] .layout-edit-actionbar {
+  background: color-mix(in srgb, #ffffff 90%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 32%, rgba(21, 32, 43, 0.16));
+}
+
+/* First-run hint bubble, shown once above the action bar */
+.layout-hint {
+  position: fixed;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  z-index: 4600;
+  max-width: min(320px, calc(100vw - 32px));
+  padding: 10px 14px;
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--accent) 92%, var(--bg-card));
+  color: #fff;
+  font-size: var(--fs-4);
+  font-weight: 500;
+  text-align: center;
+  box-shadow: 0 14px 32px rgba(0, 0, 0, 0.3);
 }
 
 body.layout-edit-mode .card-drag-handle {
   display: inline-flex;
 }
 
-body.layout-edit-mode .card-span-toggle {
+body.layout-edit-mode .card-resize-handle {
   display: inline-flex;
 }
 
@@ -1267,7 +1330,34 @@ body.layout-edit-mode .sortable-chosen {
 body.layout-edit-mode .card.is-dragging,
 body.layout-edit-mode details.card.is-dragging {
   opacity: 0.55;
-  transform: scale(0.98);
+  transform: scale(0.97) rotate(-0.5deg);
+  box-shadow: 0 22px 48px rgba(0, 0, 0, 0.4);
+}
+
+body.layout-edit-mode .card.is-resizing,
+body.layout-edit-mode details.card.is-resizing {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  box-shadow: 0 14px 34px color-mix(in srgb, var(--accent) 30%, rgba(0, 0, 0, 0.3));
+}
+
+body.is-resizing-active section.grid {
+  position: relative;
+}
+
+body.is-resizing-active section.grid::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  background-image: repeating-linear-gradient(
+    to right,
+    color-mix(in srgb, var(--accent) 12%, transparent) 0,
+    color-mix(in srgb, var(--accent) 12%, transparent) 1px,
+    transparent 1px,
+    transparent calc(100% / var(--cols))
+  );
 }
 
 body.layout-edit-mode .card-toggle-button {
@@ -1287,7 +1377,7 @@ body.layout-edit-mode details.card > summary .card-drag-handle {
   pointer-events: auto;
 }
 
-body.layout-edit-mode details.card > summary .card-span-toggle {
+body.layout-edit-mode details.card > .card-resize-handle {
   pointer-events: auto;
 }
 
@@ -2398,10 +2488,6 @@ body[data-theme="light"] .toast {
     margin: 0;
   }
 
-  .grid {
-    grid-template-columns: 1fr;
-  }
-
   .form-grid-2 {
     grid-template-columns: 1fr;
   }
@@ -2444,35 +2530,8 @@ body[data-theme="light"] .toast {
   }
 }
 
-/* Tablet: 2-column layout for medium screens */
+/* Tablet: 2-column layout for medium screens (card grids use the shared --cols system) */
 @media (min-width: 600px) and (max-width: 900px) {
-  .stats {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .media-top {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .power-summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .climate-summary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .climate-device-grid,
-  .climate-config-grid,
-  .climate-debug-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
-  .watering-primary-grid,
-  .watering-secondary-grid {
-    grid-template-columns: repeat(2, 1fr);
-  }
-
   .form-grid-2 {
     grid-template-columns: repeat(2, 1fr);
   }

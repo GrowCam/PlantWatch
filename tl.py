@@ -31,10 +31,22 @@ def main():
 
     os.makedirs(OUTPUT_VIDEO_DIR, exist_ok=True)
 
-    images = sorted([
-        f for f in os.listdir(IMAGES_DIR)
-        if f.lower().endswith(".jpg")
-    ])
+    def _sort_key(filename):
+        match = filename_pattern.search(filename)
+        if match:
+            try:
+                return datetime.strptime(match.group("ts"), "%d-%m-%Y-%H:%M:%S")
+            except ValueError:
+                pass
+        try:
+            return datetime.fromtimestamp(os.path.getmtime(os.path.join(IMAGES_DIR, filename)))
+        except OSError:
+            return datetime.min
+
+    images = sorted(
+        (f for f in os.listdir(IMAGES_DIR) if f.lower().endswith(".jpg")),
+        key=_sort_key,
+    )
 
     print(f"📸 {len(images)} images found.")
 

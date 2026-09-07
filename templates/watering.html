@@ -7,7 +7,7 @@
         </div>
       </header>
 
-      <section class="grid watering-primary-grid">
+      <section class="grid watering-primary-grid" data-layout-key="watering-primary">
         <div class="card">
           <h3><span class="heading-emoji">📝</span>{{ tr('save_watering') }}</h3>
           <form id="waterForm">
@@ -35,7 +35,7 @@
 
       {% for group in pump_groups %}
       {% if group.tent_name %}<h4 class="tent-heading">{{ group.tent_name }}</h4>{% endif %}
-      <section class="grid watering-secondary-grid" data-layout-isolated="true">
+      <section class="grid watering-secondary-grid" data-layout-isolated="true" data-layout-key="watering-tent-{{ loop.index }}">
         {% for pump in group.pumps %}
         <div class="card pump-card" data-pump-id="{{ pump.id }}">
           <h3><span class="heading-emoji">🚰</span>{{ pump.name }}</h3>
@@ -79,7 +79,7 @@
       {% endfor %}
 
       {% if water_sensors %}
-      <section class="grid watering-secondary-grid">
+      <section class="grid watering-secondary-grid" data-layout-key="watering-reservoirs">
         {% for sensor in water_sensors %}
         <div class="card reservoir-card">
           <h3><span class="heading-emoji">🛟</span>{{ sensor.name or tr('reservoir_sensor') }}</h3>
@@ -93,7 +93,7 @@
       </section>
       {% endif %}
 
-      <section class="grid watering-secondary-grid">
+      <section class="grid watering-secondary-grid" data-layout-key="watering-history">
         <div class="card">
           <h3><span class="heading-emoji">🗒️</span>{{ tr('watering_history') }}</h3>
           {% if watering_log %}

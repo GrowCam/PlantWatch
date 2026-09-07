@@ -10,7 +10,7 @@
         </div>
       </header>
 
-      <section class="grid climate-summary-grid power-summary-grid">
+      <section class="grid climate-summary-grid power-summary-grid" data-layout-key="power-summary">
         <div class="card stat-card stat-card-compact">
           <h3>{{ tr('total_power') }}</h3>
           <p class="value" id="totalPowerValue">{{ '%.1f'|format(power_summary.totals.currentPowerW) }} W</p>
@@ -32,7 +32,7 @@
         </div>
       </section>
 
-      <section class="grid climate-config-grid">
+      <section class="grid climate-config-grid" data-layout-key="power-chart-filters">
         <details class="card debug-card" open>
           <summary class="debug-summary">
             <h3><span class="heading-emoji">📈</span>{{ tr('show_in_chart') }}</h3>
@@ -41,7 +41,7 @@
         </details>
       </section>
 
-      <section class="grid climate-device-grid">
+      <section class="grid climate-device-grid" data-layout-key="power-devices">
         {% if not power_summary.devices %}
         <div class="card">
           <p class="muted">{{ tr('power_no_devices') }}</p>
@@ -61,20 +61,20 @@
         {% endfor %}
       </section>
 
-      <section class="grid climate-config-grid power-chart-grid">
-        <div class="card climate-card climate-expanded">
+      <section class="grid climate-config-grid power-chart-grid" data-layout-key="power-charts">
+        <div class="card climate-card climate-expanded" data-span="2">
           <div class="card-header">
             <h3>{{ tr('current_power') }}</h3>
           </div>
           <canvas id="powerCurrentChart" height="240"></canvas>
         </div>
-        <div class="card climate-card climate-expanded">
+        <div class="card climate-card climate-expanded" data-span="2">
           <div class="card-header">
             <h3>{{ tr('energy_today') }}</h3>
           </div>
           <canvas id="powerEnergyChart" height="240"></canvas>
         </div>
-        <div class="card climate-card climate-expanded">
+        <div class="card climate-card climate-expanded" data-span="2">
           <div class="card-header">
             <h3>{{ tr('energy_month') }}</h3>
           </div>
@@ -82,7 +82,7 @@
         </div>
       </section>
 
-      <section class="grid climate-config-grid">
+      <section class="grid climate-config-grid" data-layout-key="power-settings">
         <details class="card debug-card" open>
           <summary class="debug-summary">
             <h3><span class="heading-emoji">⚡</span>{{ tr('power_settings') }}</h3>

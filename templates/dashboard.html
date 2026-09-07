@@ -100,8 +100,8 @@
         </div>
       </section>
 
-      <section class="grid media-top">
-        <div class="card large photo-card">
+      <section class="grid media-top" data-layout-key="media-top">
+        <div class="card large photo-card" data-span="2">
           <div class="card-header">
             <div>
               <h3>{{ tr('latest_photo') }}</h3>
@@ -114,6 +114,19 @@
             <span class="badge neutral" id="photoTimestamp">–</span>
           </div>
           <button class="primary small" data-action="photo">📸 {{ tr('new_photo') }}</button>
+        </div>
+        <div class="card large photo-card" data-span="2">
+          <div class="card-header">
+            <div>
+              <h3>{{ tr('timelapse_latest_photo') }}</h3>
+            </div>
+          </div>
+          <div class="photo-wrapper">
+            <img id="timelapseDashPreview" src="" alt="{{ tr('timelapse_latest_photo') }}" loading="lazy" />
+          </div>
+          <div class="photo-timestamp-row">
+            <span class="badge neutral" id="timelapseDashTimestamp">–</span>
+          </div>
         </div>
         <div class="card list info-card">
           <div class="card-header">

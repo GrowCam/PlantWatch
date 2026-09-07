@@ -65,7 +65,7 @@
         <canvas id="climateChart" height="320"></canvas>
       </section>
 
-      <section class="grid climate-summary-grid">
+      <section class="grid climate-summary-grid" data-layout-key="climate-summary">
         <div class="card stat-card stat-card-compact">
           <h3><span class="heading-emoji">🗓️</span>{{ tr('climate_24h') }}</h3>
           {% if stats_24h %}
@@ -146,7 +146,7 @@
         </div>
       </section>
 
-      <section class="grid climate-device-grid">
+      <section class="grid climate-device-grid" data-layout-key="climate-devices">
         {% if ui_settings.heater_enabled %}
         <div class="card">
           <h3><span class="heading-emoji">🔥</span>{{ tr('heater_card_title') }}</h3>
@@ -212,7 +212,7 @@
 
       {% set humidity_devices_enabled = ui_settings.dehumidifier_enabled or ui_settings.humidifier_enabled %}
       {% set humidity_has_exhaust = ui_settings.exhaust_enabled %}
-      <section class="grid climate-config-grid">
+      <section class="grid climate-config-grid" data-layout-key="climate-config">
         {% if ui_settings.heater_enabled %}
         <details class="card debug-card">
           <summary class="debug-summary">
@@ -375,7 +375,7 @@
         {% endif %}
       </section>
 
-      <section class="grid climate-debug-grid">
+      <section class="grid climate-debug-grid" data-layout-key="climate-debug">
         {% if ui_settings.heater_enabled and ui_settings.heater_debug_card_enabled %}
         <details class="card debug-card">
           <summary class="debug-summary">

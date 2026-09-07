@@ -291,6 +291,7 @@ Examples:
     group.add_argument('--photo-only', action='store_true', help='Capture photo only (sensor values = "none")')
     group.add_argument('--sensors-only', action='store_true', help='Show sensor values only, no photo')
     parser.add_argument('--timelapse', action='store_true', help='Save image to timelapse folder (for cron)')
+    parser.add_argument('--output-dir', help='Override output directory for the captured photo')
 
     parser.add_argument('--stage', choices=['earlyveg', 'veg', 'earlyflower', 'flower'],
                         help='Plant stage for VPD assessment')
@@ -602,6 +603,8 @@ def main():
     args = parse_arguments()
 
     IMAGES_DIR = TIMELAPSE_IMAGES_DIR if args.timelapse else DEFAULT_IMAGES_DIR
+    if args.output_dir:
+        IMAGES_DIR = args.output_dir
     ensure_images_directory()
 
     if args.timelapse and not should_capture_timelapse():
@@ -612,7 +615,7 @@ def main():
         return
 
     if not args.sensors_only and is_locked():
-        print("⏳ cam.py is already running. Aborting.")
+        print("❌ Kamera beschäftigt – cam.py läuft bereits.")
         sys.exit(0)
 
     create_lock()

@@ -19,7 +19,7 @@
     <script src="{{ static_url('vendor/Sortable.min.js') }}" defer></script>
     {% block extra_head %}{% endblock %}
   </head>
-  <body data-theme="{{ ui_settings.appearance_theme }}" data-accent="{{ ui_settings.accent_theme }}" style="--accent: {{ ui_settings.accent_primary }}; --accent-2: {{ ui_settings.accent_secondary }};" class="compact-ui">
+  <body data-theme="{{ ui_settings.appearance_theme }}" data-accent="{{ ui_settings.accent_theme }}" data-resize-label="{{ tr('resize_card') }}" style="--accent: {{ ui_settings.accent_primary }}; --accent-2: {{ ui_settings.accent_secondary }};" class="compact-ui">
     <div class="sidebar-backdrop" id="sidebarOverlay"></div>
     <aside class="sidebar" id="sidebar">
       <div class="sidebar-head">
@@ -46,16 +46,6 @@
           <div class="topbar-title">
             <span class="topbar-label">{{ tr('nav_' ~ current_page) if current_page in ['dashboard', 'fertilizer', 'watering', 'climate', 'power', 'light', 'timelapse', 'settings'] else current_page|capitalize }}</span>
           </div>
-          <button
-            type="button"
-            class="lei-btn"
-            data-layout-toggle
-            aria-pressed="false"
-            aria-label="{{ tr('edit_layout') }}"
-            title="{{ tr('edit_layout') }}"
-            data-label-edit="{{ tr('edit_layout') }}"
-            data-label-save="{{ tr('save_layout') }}"
-          >⠿</button>
         </div>
       </div>
       <div class="page-toolbar">
@@ -66,10 +56,23 @@
           data-layout-toggle
           aria-pressed="false"
           data-label-edit="{{ tr('edit_layout') }}"
-          data-label-save="{{ tr('save_layout') }}"
+          data-label-save="{{ tr('done_editing') }}"
         ><span class="lei-icon">⠿</span><span class="lei-label"> {{ tr('edit_layout') }}</span></button>
       </div>
-      <div class="layout-edit-banner" id="layoutEditBanner" aria-live="polite">⠿ {{ tr('edit_layout') }}</div>
+      <button
+        type="button"
+        class="layout-fab"
+        data-layout-toggle
+        aria-pressed="false"
+        aria-label="{{ tr('edit_layout') }}"
+        title="{{ tr('edit_layout') }}"
+      >⠿</button>
+      <div class="layout-edit-actionbar" id="layoutEditActionbar" aria-live="polite">
+        <span class="layout-edit-actionbar-label">⠿ {{ tr('edit_layout') }}</span>
+        <button type="button" class="ghost small" id="layoutResetBtn" data-confirm="{{ tr('reset_layout_confirm') }}">{{ tr('reset_layout') }}</button>
+        <button type="button" class="primary small" data-layout-toggle>{{ tr('done_editing') }}</button>
+      </div>
+      <div class="layout-hint" id="layoutHint" hidden>{{ tr('layout_hint') }}</div>
       {% block content %}{% endblock %}
     </main>
     <div class="toast" id="toast">{{ tr('saved') }}</div>
@@ -150,25 +153,100 @@
           return `detailsOpen:${path}:${keySource}`;
         };
 
-        const getSpanStorageKey = (path, source) => `cardSpan:${path}:${source}`;
+        // One-time migration: old binary cardSpan:<path>:<key> booleans -> new
+        // numeric cardSpanN:<path>:<key> spans, so existing users don't lose
+        // their "wide card" choices when the resize system replaces the toggle.
+        (() => {
+          const path = window.location.pathname;
+          const flagKey = `cardSpanMigrated:${path}`;
+          if (localStorage.getItem(flagKey) === "true") return;
+          try {
+            const prefix = `cardSpan:${path}:`;
+            for (let i = localStorage.length - 1; i >= 0; i--) {
+              const key = localStorage.key(i);
+              if (!key || !key.startsWith(prefix)) continue;
+              const wasWide = localStorage.getItem(key) === "true";
+              const newKey = `cardSpanN:${path}:${key.slice(prefix.length)}`;
+              if (localStorage.getItem(newKey) === null) {
+                localStorage.setItem(newKey, wasWide ? "2" : "1");
+              }
+              localStorage.removeItem(key);
+            }
+          } catch (_) {}
+          localStorage.setItem(flagKey, "true");
+        })();
 
-        const setupSpanToggle = (card, headerNode, keySource) => {
-          const spanBtn = document.createElement("button");
-          spanBtn.type = "button";
-          spanBtn.className = "card-span-toggle";
-          spanBtn.setAttribute("aria-label", "Toggle card width");
-          spanBtn.textContent = "⤢";
-          headerNode.appendChild(spanBtn);
+        const resizeLabel = document.body.dataset.resizeLabel || "Resize card";
 
-          const storageKey = getSpanStorageKey(window.location.pathname, keySource);
-          const setWide = (wide) => {
-            card.classList.toggle("card-span-wide", wide);
-            spanBtn.classList.toggle("is-active", wide);
-            localStorage.setItem(storageKey, wide ? "true" : "false");
+        const setupResize = (card, keySource) => {
+          const handle = document.createElement("button");
+          handle.type = "button";
+          handle.className = "card-resize-handle";
+          handle.setAttribute("aria-label", resizeLabel);
+          handle.textContent = "⤡";
+          card.appendChild(handle);
+
+          const storageKey = `cardSpanN:${window.location.pathname}:${keySource}`;
+          const maxSpanCap = 4;
+
+          const readCols = () => {
+            const container = card.closest("section.grid");
+            const raw = container && getComputedStyle(container).getPropertyValue("--cols");
+            const n = parseInt(raw, 10);
+            return Number.isFinite(n) && n > 0 ? n : 1;
           };
-          setWide(localStorage.getItem(storageKey) === "true");
-          spanBtn.addEventListener("click", () => {
-            setWide(!card.classList.contains("card-span-wide"));
+
+          const applySpan = (n) => {
+            const clamped = Math.max(1, Math.min(n, readCols(), maxSpanCap));
+            card.style.gridColumn = clamped > 1 ? `span ${clamped}` : "";
+            card.dataset.span = String(clamped);
+            return clamped;
+          };
+
+          const saved = localStorage.getItem(storageKey);
+          applySpan(saved !== null ? parseInt(saved, 10) : parseInt(card.dataset.span || "1", 10));
+
+          let dragging = false;
+          let startX = 0;
+          let startSpan = 1;
+          let colWidth = 0;
+
+          handle.addEventListener("pointerdown", (e) => {
+            if (!document.body.classList.contains("layout-edit-mode")) return;
+            e.preventDefault();
+            e.stopPropagation();
+            dragging = true;
+            handle.setPointerCapture(e.pointerId);
+            startX = e.clientX;
+            startSpan = parseInt(card.dataset.span || "1", 10);
+            const container = card.closest("section.grid");
+            const rect = container ? container.getBoundingClientRect() : card.getBoundingClientRect();
+            colWidth = rect.width / readCols() || 1;
+            card.classList.add("is-resizing");
+            document.body.classList.add("is-resizing-active");
+          });
+          handle.addEventListener("pointermove", (e) => {
+            if (!dragging) return;
+            applySpan(startSpan + Math.round((e.clientX - startX) / colWidth));
+          });
+          const finishDrag = () => {
+            if (!dragging) return;
+            dragging = false;
+            card.classList.remove("is-resizing");
+            document.body.classList.remove("is-resizing-active");
+            localStorage.setItem(storageKey, card.dataset.span);
+          };
+          handle.addEventListener("pointerup", finishDrag);
+          handle.addEventListener("pointercancel", finishDrag);
+
+          // Accessible/click fallback: cycle span 1 -> 2 -> ... -> max -> 1
+          handle.addEventListener("click", (e) => {
+            e.stopPropagation();
+            const cols = readCols();
+            const current = parseInt(card.dataset.span || "1", 10);
+            const next = current >= Math.min(cols, maxSpanCap) ? 1 : current + 1;
+            applySpan(next);
+            localStorage.setItem(storageKey, String(next));
           });
         };
 
@@ -236,7 +314,7 @@
           headerNode.appendChild(dragHandle);
 
           const keySource = storageSource || slugify(headerLabel) || `card-${index}`;
-          setupSpanToggle(card, headerNode, keySource);
+          setupResize(card, keySource);
 
           const bodyWrap = document.createElement("div");
           bodyWrap.className = "card-collapsible-body";
@@ -276,7 +354,7 @@
 
           const summaryText = summary.textContent || "";
           const keySource = details.id || details.dataset.toggleKey || slugify(summaryText) || `details-${index}`;
-          setupSpanToggle(details, summary, keySource);
+          setupResize(details, keySource);
         });
 
         const layoutToggles = document.querySelectorAll("[data-layout-toggle]");
@@ -378,21 +456,33 @@
               ghostClass: "sortable-ghost",
               chosenClass: "sortable-chosen",
               dragClass: "is-dragging",
-              onEnd: persistLayout,
+              onStart: () => document.body.classList.add("is-resizing-active"),
+              onEnd: (evt) => {
+                document.body.classList.remove("is-resizing-active");
+                persistLayout(evt);
+              },
             })
           );
         });
+
+        const HINT_FLAG = "layoutHintSeen";
+        const layoutHint = document.getElementById("layoutHint");
+        let hintTimer = null;
+        const showLayoutHintOnce = () => {
+          if (!layoutHint || localStorage.getItem(HINT_FLAG) === "true") return;
+          layoutHint.hidden = false;
+          localStorage.setItem(HINT_FLAG, "true");
+          hintTimer = setTimeout(() => { layoutHint.hidden = true; }, 5000);
+        };
 
         const setLayoutEditMode = (enabled) => {
           document.body.classList.toggle("layout-edit-mode", enabled);
           layoutToggles.forEach((btn) => {
             btn.setAttribute("aria-pressed", enabled ? "true" : "false");
-            if (!btn.classList.contains("lei-btn")) {
-              btn.classList.toggle("primary", enabled);
-              btn.classList.toggle("ghost", !enabled);
-            }
             const labelEl = btn.querySelector(".lei-label");
             if (labelEl) {
+              btn.classList.toggle("primary", enabled);
+              btn.classList.toggle("ghost", !enabled);
               labelEl.textContent = " " + (enabled ? btn.dataset.labelSave : btn.dataset.labelEdit);
             }
           });
@@ -400,6 +490,12 @@
           sortables.forEach((sortable) => {
             sortable.option("disabled", !enabled);
           });
+          if (enabled) {
+            showLayoutHintOnce();
+          } else if (layoutHint) {
+            if (hintTimer) clearTimeout(hintTimer);
+            layoutHint.hidden = true;
+          }
         };
 
         layoutToggles.forEach((btn) => {
@@ -407,6 +503,22 @@
             setLayoutEditMode(!document.body.classList.contains("layout-edit-mode"));
           });
         });
+
+        const resetBtn = document.getElementById("layoutResetBtn");
+        if (resetBtn) {
+          resetBtn.addEventListener("click", () => {
+            if (!window.confirm(resetBtn.dataset.confirm || "Reset this page's layout?")) return;
+            Object.keys(localStorage)
+              .filter((k) =>
+                k.startsWith(`layoutOrder:${pagePath}:`) ||
+                k.startsWith(`layoutCardMap:${pagePath}`) ||
+                k.startsWith(`cardSpanN:${pagePath}:`)
+              )
+              .forEach((k) => localStorage.removeItem(k));
+            window.location.reload();
+          });
+        }
+
         setLayoutEditMode(localStorage.getItem(layoutModeKey) === "true");
       });
     </script>

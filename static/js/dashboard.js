@@ -184,6 +184,7 @@ function updateCards(data) {
   renderLog(data.log || []);
   renderInfo(data.info_lines || []);
   renderPhoto(data.latest_photo);
+  renderTimelapsePhoto(data.timelapse_latest_photo);
   renderSensorChart(data.sensor_history || []);
 }
 
@@ -239,6 +240,21 @@ function renderPhoto(info) {
   if (!img || !badge) return;
   if (info && info.path) {
     img.src = `/latest-photo?ts=${Date.now()}`;
+    img.dataset.fullscreenSrc = img.src;
+    badge.textContent = info.raw_timestamp ? formatDateTime(info.raw_timestamp) : info.timestamp;
+  } else {
+    img.src = "";
+    delete img.dataset.fullscreenSrc;
+    badge.textContent = t("noImage");
+  }
+}
+
+function renderTimelapsePhoto(info) {
+  const img = $("#timelapseDashPreview");
+  const badge = $("#timelapseDashTimestamp");
+  if (!img || !badge) return;
+  if (info && info.path) {
+    img.src = `/latest-timelapse-photo?ts=${Date.now()}`;
     img.dataset.fullscreenSrc = img.src;
     badge.textContent = info.raw_timestamp ? formatDateTime(info.raw_timestamp) : info.timestamp;
   } else {
@@ -476,6 +492,7 @@ function setupButtons() {
   }
 
   const preview = $("#photoPreview");
+  const timelapsePreview = $("#timelapseDashPreview");
   const lightbox = $("#imageLightbox");
   const lightboxImg = $("#imageLightboxImg");
   const lightboxClose = $("#imageLightboxClose");
@@ -485,20 +502,28 @@ function setupButtons() {
     lightboxImg.src = "";
     document.body.classList.remove("lightbox-open");
   };
-  const openLightbox = () => {
-    const src = preview?.dataset.fullscreenSrc || preview?.getAttribute("src") || "";
+  const openLightboxFor = (imgEl) => {
+    const src = imgEl?.dataset.fullscreenSrc || imgEl?.getAttribute("src") || "";
     if (!lightbox || !lightboxImg || !src) return;
     lightboxImg.src = src;
     lightbox.hidden = false;
     document.body.classList.add("lightbox-open");
   };
+  const openLightbox = () => openLightboxFor(preview);
   const handlePreviewOpen = (event) => {
     event.preventDefault();
     if (!preview.getAttribute("src")) return;
     openLightbox();
   };
+  const handleTimelapsePreviewOpen = (event) => {
+    event.preventDefault();
+    if (!timelapsePreview.getAttribute("src")) return;
+    openLightboxFor(timelapsePreview);
+  };
   preview?.addEventListener("click", handlePreviewOpen);
   preview?.addEventListener("pointerup", handlePreviewOpen);
+  timelapsePreview?.addEventListener("click", handleTimelapsePreviewOpen);
+  timelapsePreview?.addEventListener("pointerup", handleTimelapsePreviewOpen);
   lightboxClose?.addEventListener("click", closeLightbox);
   lightbox?.addEventListener("click", (event) => {
     if (event.target === lightbox) closeLightbox();

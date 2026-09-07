@@ -48,6 +48,7 @@ TIMELAPSE_ONLY_DIRS = [
     os.path.join(SCRIPT_DIR, "timelapse"),
 ]
 PHOTO_DIRS = list(dict.fromkeys(TIMELAPSE_DIRS))
+CAMERA_TEST_DIR = os.path.join(SCRIPT_DIR, "camera_test")
 SENSOR_DB = os.path.join(SCRIPT_DIR, "sensor_data.db")
 CAM_LOG_FILE = os.path.join(SCRIPT_DIR, "cam_timelapse.log")
 CAM_SCRIPT = os.path.join(SCRIPT_DIR, "cam.py")
@@ -117,7 +118,11 @@ TRANSLATIONS = {
     "show_secret": {"de": "Anzeigen", "en": "Show"},
     "hide_secret": {"de": "Verbergen", "en": "Hide"},
     "edit_layout": {"de": "Layout bearbeiten", "en": "Edit layout"},
-    "save_layout": {"de": "Layout speichern", "en": "Save layout"},
+    "done_editing": {"de": "Fertig", "en": "Done"},
+    "reset_layout": {"de": "Layout zurücksetzen", "en": "Reset layout"},
+    "reset_layout_confirm": {"de": "Layout für diese Seite auf Standard zurücksetzen?", "en": "Reset this page's layout to default?"},
+    "layout_hint": {"de": "⠿ ziehen zum Verschieben, Ecke ziehen zum Größe ändern.", "en": "Drag ⠿ to reorder, drag the corner to resize."},
+    "resize_card": {"de": "Kartengröße ändern", "en": "Resize card"},
     "telegram_disabled_copy": {"de": "Bei Deaktivierung werden keine Telegram-Nachrichten gesendet.", "en": "When disabled, no Telegram messages will be sent."},
     "zigbee_settings": {"de": "Zigbee2MQTT", "en": "Zigbee2MQTT"},
     "mqtt_host": {"de": "MQTT-Host", "en": "MQTT host"},
@@ -400,6 +405,7 @@ TRANSLATIONS = {
     "reset": {"de": "Reset", "en": "Reset"},
     "latest_photo": {"de": "Letztes Bild", "en": "Latest photo"},
     "new_photo": {"de": "Neue Aufnahme", "en": "New capture"},
+    "timelapse_latest_photo": {"de": "Letztes Timelapse-Bild", "en": "Last timelapse photo"},
     "grow_info": {"de": "Grow Info", "en": "Grow Info"},
     "climate": {"de": "Klima", "en": "Climate"},
     "sensor_refresh": {"de": "Sensor aktualisieren", "en": "Refresh sensor"},
@@ -630,6 +636,14 @@ LIVE_SENSOR_CACHE_LOCK = threading.Lock()
 LIVE_SENSOR_CACHE: Dict[str, Any] = {"reading": None, "fetched_at": None}
 _FS_CACHE: Dict[str, tuple] = {}  # key -> (monotonic_time, result)
 _FS_CACHE_TTL = 30.0  # seconds
+TIMELAPSE_JOB_LOCK = threading.Lock()
+TIMELAPSE_JOB: Dict[str, Any] = {
+    "running": False,
+    "started_at": None,
+    "finished_at": None,
+    "message": None,
+    "ok": None,
+}
 ACCENT_PRESETS = {
     "teal": {"primary": "#14b8a6", "secondary": "#6366f1"},
     "sunset": {"primary": "#f97316", "secondary": "#ef4444"},
@@ -2036,10 +2050,10 @@ def read_bot_log(limit: int = 30) -> List[Dict[str, str]]:
     return entries
 
 
-def _get_latest_photo_from_dirs(directories: List[str]) -> Dict[str, Any] | None:
+def _get_latest_photo_from_dirs(directories: List[str], bypass_cache: bool = False) -> Dict[str, Any] | None:
     key = f"latest_photo:{','.join(directories)}"
     now = time.monotonic()
-    if key in _FS_CACHE and now - _FS_CACHE[key][0] < _FS_CACHE_TTL:
+    if not bypass_cache and key in _FS_CACHE and now - _FS_CACHE[key][0] < _FS_CACHE_TTL:
         return _FS_CACHE[key][1]
     newest_path = None
     newest_mtime = 0.0
@@ -2064,12 +2078,16 @@ def _get_latest_photo_from_dirs(directories: List[str]) -> Dict[str, Any] | None
     return result
 
 
-def get_latest_timelapse_photo() -> Dict[str, Any] | None:
-    return _get_latest_photo_from_dirs(TIMELAPSE_DIRS)
+def get_latest_timelapse_photo(bypass_cache: bool = False) -> Dict[str, Any] | None:
+    return _get_latest_photo_from_dirs(TIMELAPSE_DIRS, bypass_cache=bypass_cache)
 
 
 def get_latest_timelapse_capture() -> Dict[str, Any] | None:
     return _get_latest_photo_from_dirs(TIMELAPSE_ONLY_DIRS)
+
+
+def get_latest_camera_test_capture(bypass_cache: bool = False) -> Dict[str, Any] | None:
+    return _get_latest_photo_from_dirs([CAMERA_TEST_DIR], bypass_cache=bypass_cache)
 
 
 def get_camera_test_image_info() -> Dict[str, Any] | None:
@@ -2580,7 +2598,7 @@ def extract_camera_final_settings(output: str) -> Dict[str, Any] | None:
 def action_photo() -> Dict[str, Any]:
     before = get_latest_timelapse_photo()
     result = run_cam_command([])
-    latest = get_latest_timelapse_photo()
+    latest = get_latest_timelapse_photo(bypass_cache=True)
     if result.startswith("❌"):
         return {"message": result, "photo_updated": bool(latest)}
     if latest and (not before or latest.get("path") != before.get("path")):
@@ -2615,15 +2633,41 @@ def run_timelapse_command() -> str:
         return f"❌ Fehler: {exc}"
 
 
-def action_timelapse() -> Dict[str, Any]:
-    message = "🎥 Timelapse-Erstellung gestartet..."
+def _run_timelapse_job() -> None:
     result = run_timelapse_command()
-    info = get_timelapse_video_info()
+    with TIMELAPSE_JOB_LOCK:
+        TIMELAPSE_JOB["running"] = False
+        TIMELAPSE_JOB["finished_at"] = datetime.now().isoformat()
+        TIMELAPSE_JOB["message"] = result
+        TIMELAPSE_JOB["ok"] = not result.startswith("❌")
+
+
+def action_timelapse() -> Dict[str, Any]:
+    with TIMELAPSE_JOB_LOCK:
+        if TIMELAPSE_JOB["running"]:
+            return {
+                "message": "⏳ Timelapse-Erstellung läuft bereits...",
+                "job_started": False,
+                "job_running": True,
+            }
+        TIMELAPSE_JOB["running"] = True
+        TIMELAPSE_JOB["started_at"] = datetime.now().isoformat()
+        TIMELAPSE_JOB["finished_at"] = None
+        TIMELAPSE_JOB["message"] = None
+        TIMELAPSE_JOB["ok"] = None
+    threading.Thread(target=_run_timelapse_job, daemon=True).start()
     return {
-        "message": message + ("\n" + result if result else ""),
-        "timelapse_updated": info.get("exists", False),
-        "timelapse_timestamp": info.get("timestamp"),
+        "message": "🎥 Timelapse-Erstellung gestartet...",
+        "job_started": True,
+        "job_running": True,
     }
+
+
+def get_timelapse_job_status() -> Dict[str, Any]:
+    with TIMELAPSE_JOB_LOCK:
+        status = dict(TIMELAPSE_JOB)
+    status["video"] = get_timelapse_video_info()
+    return status
 
 
 def action_temp() -> Dict[str, Any]:
@@ -2671,10 +2715,11 @@ def action_camera_test(payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
     app_settings.update(camera_settings)
     data["app_settings"] = app_settings
     save_data(data)
-    before = get_latest_timelapse_photo()
+    os.makedirs(CAMERA_TEST_DIR, exist_ok=True)
+    before = get_latest_camera_test_capture()
     try:
-        output = run_cam_command(["--photo-only"])
-        latest = get_latest_timelapse_photo()
+        output = run_cam_command(["--photo-only", "--output-dir", CAMERA_TEST_DIR])
+        latest = get_latest_camera_test_capture(bypass_cache=True)
     finally:
         restore_data = load_data()
         restore_settings = get_app_settings()
@@ -2685,6 +2730,12 @@ def action_camera_test(payload: Dict[str, Any] | None = None) -> Dict[str, Any]:
     if output.startswith("❌"):
         return {"message": output, "photo_updated": bool(latest)}
     if latest and (not before or latest.get("path") != before.get("path")):
+        for stale in glob.glob(os.path.join(CAMERA_TEST_DIR, "*.jpg")):
+            if stale != latest.get("path"):
+                try:
+                    os.remove(stale)
+                except OSError:
+                    pass
         data = load_data()
         data["camera_test_image"] = {
             "path": latest.get("path"),
@@ -5960,6 +6011,11 @@ def api_action():
         return jsonify({"error": "action fehlt"}), 400
     result = perform_action(action, payload)
     return jsonify({"ok": True, **result})
+
+
+@app.route("/api/timelapse-video-status")
+def api_timelapse_video_status():
+    return jsonify(get_timelapse_job_status())
 
 
 @app.route("/latest-photo")

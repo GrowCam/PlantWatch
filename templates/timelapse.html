@@ -7,7 +7,7 @@
         </div>
       </header>
 
-      <section class="grid climate-summary-grid">
+      <section class="grid climate-summary-grid" data-layout-key="timelapse-stats">
         <div class="card stat-card stat-card-compact">
           <h3>{{ tr('total_images') }}</h3>
           <p class="value" id="imgCount">{{ dashboard.images.count }}</p>
@@ -26,7 +26,7 @@
         </div>
       </section>
 
-      <section class="grid climate-config-grid">
+      <section class="grid climate-config-grid" data-layout-key="timelapse-settings">
         <details class="card debug-card" open>
           <summary class="debug-summary">
             <h3><span class="heading-emoji">🎞️</span>{{ tr('timelapse_settings') }}</h3>
@@ -84,7 +84,7 @@
               <input type="checkbox" id="cameraAutoFocus" {% if app_settings.camera_auto_focus %}checked{% endif %} />
             </label>
             <label for="cameraFocus">{{ tr('camera_focus') }}</label>
-            <div class="slider-field">
+            <div class="slider-field" data-auto-toggle="cameraAutoFocus">
               <input type="range" id="cameraFocus" min="-1" max="255" step="1" value="{{ app_settings.camera_focus }}" data-slider-unit="" data-slider-digits="0" />
               <input type="number" id="cameraFocusNumber" min="-1" max="255" step="1" value="{{ app_settings.camera_focus }}" data-slider-number-for="cameraFocus" />
             </div>
@@ -93,7 +93,7 @@
               <input type="checkbox" id="cameraAutoExposure" {% if app_settings.camera_auto_exposure %}checked{% endif %} />
             </label>
             <label for="cameraExposure">{{ tr('camera_exposure') }}</label>
-            <div class="slider-field">
+            <div class="slider-field" data-auto-toggle="cameraAutoExposure">
               <input type="range" id="cameraExposure" min="0" max="255" step="1" value="{{ 0 if app_settings.camera_exposure < 0 else app_settings.camera_exposure }}" data-slider-unit="" data-slider-digits="0" />
               <input type="number" id="cameraExposureNumber" min="0" max="255" step="1" value="{{ 0 if app_settings.camera_exposure < 0 else app_settings.camera_exposure }}" data-slider-number-for="cameraExposure" />
             </div>
@@ -134,18 +134,28 @@
             {{ camera_test_image.timestamp }}
             {% endif %}
           </span>
+          <div class="card-header" id="cameraTestSettingsWrap" {% if not camera_test_image or not camera_test_image.settings %}hidden{% endif %}>
+            <div>
+              <h3>{{ tr('camera_test_settings') }}</h3>
+              <small id="cameraTestSettingsSummary"></small>
+            </div>
+          </div>
+          <div class="card-actions" id="cameraTestApplyWrap" {% if not camera_test_image or not camera_test_image.settings %}hidden{% endif %}>
+            <button type="button" class="ghost small" id="cameraTestApplyButton">{{ tr('apply_test_settings') }}</button>
+          </div>
         </details>
       </section>
 
-      <section class="grid climate-config-grid">
+      <section class="grid climate-config-grid" data-layout-key="timelapse-video">
         <details class="card debug-card" open>
           <summary class="debug-summary">
             <h3><span class="heading-emoji">🎥</span>{{ tr('timelapse_images') }}</h3>
           </summary>
           <div class="card-actions">
-            <button class="ghost small" data-action="timelapse_video">🎥 {{ tr('create_video') }}</button>
+            <button class="ghost small" data-action="timelapse_video" id="tlCreateButton">🎥 {{ tr('create_video') }}</button>
             <button class="ghost small" id="tlDownload" type="button" {% if not dashboard.timelapse.exists %}hidden{% endif %}>⬇️ {{ tr('download_video') }}</button>
           </div>
+          <small class="hint-text" id="tlJobStatus" hidden></small>
           <div class="info-list" id="tlMeta">
             <div class="metric-card">
               <div class="icon-chip">📅</div>
