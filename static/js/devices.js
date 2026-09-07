@@ -16,6 +16,8 @@ const TXT = {
     deleteConfirm: "Wirklich löschen?",
     selectFirst: "Bitte zuerst ein Element auswählen.",
     missingName: "Bitte einen Namen eingeben.",
+    modeMinutes: "Minuten (tippen für Liter)",
+    modeLiters: "Liter (tippen für Minuten)",
   },
   en: {
     edit: "Edit",
@@ -24,9 +26,16 @@ const TXT = {
     deleteConfirm: "Really delete this?",
     selectFirst: "Please select an item first.",
     missingName: "Please enter a name.",
+    modeMinutes: "Minutes (tap for liters)",
+    modeLiters: "Liters (tap for minutes)",
   },
 };
 const t = (key) => (TXT[APP_LANG] && TXT[APP_LANG][key]) || TXT.de[key] || key;
+
+function presetLabel(preset) {
+  const unit = preset.mode === "liters" ? "L" : "min";
+  return `${preset.name} (${preset.value} ${unit})`;
+}
 
 async function fetchJSON(url, options = {}) {
   const response = await fetch(url, options);
@@ -45,13 +54,14 @@ function showToast(message, isError = false) {
   setTimeout(() => toast.classList.remove("show"), 2500);
 }
 
-function fillSelect(select, items, { none = true, valueKey = "id", labelKey = "name" } = {}) {
+function fillSelect(select, items, { none = true, valueKey = "id", labelKey = "name", labelFn = null } = {}) {
   if (!select) return;
   const current = select.value;
   const options = [];
   if (none) options.push(`<option value="">${t("none")}</option>`);
   items.forEach((item) => {
-    options.push(`<option value="${item[valueKey]}">${item[labelKey] || item[valueKey]}</option>`);
+    const label = labelFn ? labelFn(item) : item[labelKey] || item[valueKey];
+    options.push(`<option value="${item[valueKey]}">${label}</option>`);
   });
   select.innerHTML = options.join("");
   if (items.some((item) => String(item[valueKey]) === current)) {
@@ -62,7 +72,7 @@ function fillSelect(select, items, { none = true, valueKey = "id", labelKey = "n
 function refreshSelects() {
   fillSelect($("#pumpTentId"), tents);
   fillSelect($("#pumpSensorId"), waterSensors);
-  fillSelect($("#pumpActivePresetId"), waterPresets);
+  fillSelect($("#pumpActivePresetId"), waterPresets, { labelFn: presetLabel });
   fillSelect($("#sensorTentId"), tents);
 }
 
@@ -172,7 +182,10 @@ async function deleteTent(id) {
 
 function pumpSummary(pump) {
   const bits = [];
-  if (pump.dosing_mode === "liters") {
+  const preset = pump.active_preset_id ? waterPresets.find((p) => p.id === pump.active_preset_id) : null;
+  if (preset) {
+    bits.push(presetLabel(preset));
+  } else if (pump.dosing_mode === "liters") {
     bits.push(`${pump.dosing_liters} L`);
   } else {
     bits.push(`${pump.dosing_minutes} min`);
@@ -206,12 +219,28 @@ function renderPumpList() {
   bindPumpButtons();
 }
 
-function syncDosingModeVisibility() {
-  const isLiters = $("#pumpDosingModeLiters")?.checked;
+function setDosingModeButton(mode) {
+  const btn = $("#pumpDosingModeToggle");
+  const hidden = $("#pumpDosingMode");
+  if (!btn || !hidden) return;
+  hidden.value = mode;
+  btn.dataset.mode = mode;
+  btn.textContent = mode === "liters" ? t("modeLiters") : t("modeMinutes");
   const minutesWrap = $("#pumpDosingMinutesWrap");
   const litersWrap = $("#pumpDosingLitersWrap");
-  if (minutesWrap) minutesWrap.hidden = Boolean(isLiters);
-  if (litersWrap) litersWrap.hidden = !isLiters;
+  if (minutesWrap) minutesWrap.hidden = mode === "liters";
+  if (litersWrap) litersWrap.hidden = mode !== "liters";
+}
+
+function toggleDosingMode() {
+  const current = $("#pumpDosingMode")?.value || "minutes";
+  setDosingModeButton(current === "liters" ? "minutes" : "liters");
+}
+
+function syncManualDosingVisibility() {
+  const section = $("#pumpManualDosingSection");
+  if (!section) return;
+  section.hidden = Boolean($("#pumpActivePresetId")?.value);
 }
 
 function resetPumpForm() {
@@ -221,7 +250,7 @@ function resetPumpForm() {
   $("#pumpEnabled").checked = true;
   $("#pumpTentId").value = "";
   $("#pumpSensorId").value = "";
-  $("#pumpDosingModeMinutes").checked = true;
+  setDosingModeButton("minutes");
   $("#pumpDosingMinutes").value = "2";
   $("#pumpDosingLiters").value = "1";
   $("#pumpFlowRateValue").value = "0";
@@ -229,7 +258,7 @@ function resetPumpForm() {
   $("#pumpAutoWaterEnabled").checked = false;
   $("#pumpAutoWaterCooldown").value = "360";
   $("#pumpActivePresetId").value = "";
-  syncDosingModeVisibility();
+  syncManualDosingVisibility();
 }
 
 function fillPumpForm(pump) {
@@ -243,9 +272,7 @@ function fillPumpForm(pump) {
   $("#pumpEnabled").checked = pump.enabled !== false;
   $("#pumpTentId").value = pump.tent_id || "";
   $("#pumpSensorId").value = pump.sensor_id || "";
-  const isLiters = pump.dosing_mode === "liters";
-  $("#pumpDosingModeMinutes").checked = !isLiters;
-  $("#pumpDosingModeLiters").checked = isLiters;
+  setDosingModeButton(pump.dosing_mode === "liters" ? "liters" : "minutes");
   $("#pumpDosingMinutes").value = pump.dosing_minutes ?? 2;
   $("#pumpDosingLiters").value = pump.dosing_liters ?? 1;
   $("#pumpFlowRateValue").value = pump.flow_rate_value ?? 0;
@@ -253,7 +280,7 @@ function fillPumpForm(pump) {
   $("#pumpAutoWaterEnabled").checked = Boolean(pump.auto_water_enabled);
   $("#pumpAutoWaterCooldown").value = pump.auto_water_cooldown_minutes ?? 360;
   $("#pumpActivePresetId").value = pump.active_preset_id || "";
-  syncDosingModeVisibility();
+  syncManualDosingVisibility();
 }
 
 function bindPumpButtons() {
@@ -290,7 +317,7 @@ async function savePump() {
       sensor_id: $("#pumpSensorId").value,
       auto_water_enabled: $("#pumpAutoWaterEnabled").checked,
       auto_water_cooldown_minutes: parseInt($("#pumpAutoWaterCooldown").value || "360", 10),
-      dosing_mode: $("#pumpDosingModeLiters").checked ? "liters" : "minutes",
+      dosing_mode: $("#pumpDosingMode").value === "liters" ? "liters" : "minutes",
       dosing_minutes: parseFloat($("#pumpDosingMinutes").value || "0"),
       dosing_liters: parseFloat($("#pumpDosingLiters").value || "0"),
       flow_rate_value: parseFloat($("#pumpFlowRateValue").value || "0"),
@@ -591,8 +618,8 @@ document.addEventListener("DOMContentLoaded", () => {
       showToast(err.message, true);
     }
   });
-  $("#pumpDosingModeMinutes")?.addEventListener("change", syncDosingModeVisibility);
-  $("#pumpDosingModeLiters")?.addEventListener("change", syncDosingModeVisibility);
+  $("#pumpDosingModeToggle")?.addEventListener("click", toggleDosingMode);
+  $("#pumpActivePresetId")?.addEventListener("change", syncManualDosingVisibility);
 
   $("#sensorManageForm")?.addEventListener("submit", async (evt) => {
     evt.preventDefault();

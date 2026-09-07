@@ -179,6 +179,8 @@ TRANSLATIONS = {
     "preset_mode_minutes": {"de": "Minuten", "en": "Minutes"},
     "preset_mode_liters": {"de": "Liter", "en": "Liters"},
     "choose_preset": {"de": "Preset wählen…", "en": "Choose preset…"},
+    "default_preset_label": {"de": "Standard-Preset", "en": "Default preset"},
+    "default_preset_hint": {"de": "Falls gesetzt, wird dieses Preset für Schnellstart & Auto-Bewässerung verwendet statt der manuellen Laufzeit unten.", "en": "When set, this preset is used for quick-run and auto-watering instead of the manual runtime below."},
     "run_preset": {"de": "Preset ausführen", "en": "Run preset"},
     "auto_water_badge": {"de": "Auto-Bewässerung", "en": "Auto-watering"},
     "devices_settings_moved_title": {"de": "Geräteverwaltung umgezogen", "en": "Device management has moved"},
@@ -5374,20 +5376,29 @@ class ControllerWatchdog:
             # --- Timelapse capture health: alert if no new photo for too long ---
             timelapse_settings = get_timelapse_settings()
             if timelapse_settings.get("enabled"):
-                capture = get_latest_timelapse_capture()
-                if capture and capture.get("raw_timestamp"):
-                    try:
-                        captured_at = datetime.fromisoformat(capture["raw_timestamp"])
-                    except ValueError:
-                        captured_at = None
-                    if captured_at is not None:
-                        capture_age = (now - _as_naive(captured_at)).total_seconds()
-                        interval_seconds = max(timelapse_settings.get("interval_minutes", 5), 1) * 60
-                        if capture_age >= max(interval_seconds * 3, 900):
-                            if _should_alert("timelapse_stalled"):
-                                send_telegram_notification(
-                                    f"📸 Kein neues Foto seit {int(capture_age / 60)}min — Kamera-Capture prüfen?"
-                                )
+                lights_expected_on = True
+                if timelapse_settings.get("light_only"):
+                    cycle = get_light_cycle_settings()
+                    lights_expected_on = _time_in_window(
+                        now.time(),
+                        _parse_clock_time(cycle["lights_on_start"]),
+                        _parse_clock_time(cycle["lights_on_end"]),
+                    )
+                if lights_expected_on:
+                    capture = get_latest_timelapse_capture()
+                    if capture and capture.get("raw_timestamp"):
+                        try:
+                            captured_at = datetime.fromisoformat(capture["raw_timestamp"])
+                        except ValueError:
+                            captured_at = None
+                        if captured_at is not None:
+                            capture_age = (now - _as_naive(captured_at)).total_seconds()
+                            interval_seconds = max(timelapse_settings.get("interval_minutes", 5), 1) * 60
+                            if capture_age >= max(interval_seconds * 3, 900):
+                                if _should_alert("timelapse_stalled"):
+                                    send_telegram_notification(
+                                        f"📸 Kein neues Foto seit {int(capture_age / 60)}min — Kamera-Capture prüfen?"
+                                    )
 
 
 _migration_data = load_data()

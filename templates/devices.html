@@ -78,35 +78,36 @@
               </div>
             </div>
 
+            <div>
+              <label for="pumpActivePresetId">{{ tr('default_preset_label') }}</label>
+              <select id="pumpActivePresetId"></select>
+              <small class="hint-text">{{ tr('default_preset_hint') }}</small>
+            </div>
+
+            <div id="pumpManualDosingSection">
+              <label>{{ tr('dosing_mode_label') }}</label>
+              <div class="btn-group">
+                <button type="button" class="ghost" id="pumpDosingModeToggle" data-mode="minutes"></button>
+                <input type="hidden" id="pumpDosingMode" value="minutes" />
+              </div>
+              <div id="pumpDosingMinutesWrap">
+                <label for="pumpDosingMinutes">{{ tr('dosing_minutes_label') }}</label>
+                <input type="number" id="pumpDosingMinutes" min="0.1" step="any" value="2" />
+              </div>
+              <div id="pumpDosingLitersWrap" hidden>
+                <label for="pumpDosingLiters">{{ tr('dosing_liters_label') }}</label>
+                <input type="number" id="pumpDosingLiters" min="0.01" step="any" value="1" />
+              </div>
+            </div>
             <div class="form-grid form-grid-2">
-              <label class="toggle" for="pumpDosingModeMinutes">
-                <span>{{ tr('preset_mode_minutes') }}</span>
-                <input type="radio" name="pumpDosingMode" id="pumpDosingModeMinutes" value="minutes" checked />
-              </label>
-              <label class="toggle" for="pumpDosingModeLiters">
-                <span>{{ tr('preset_mode_liters') }}</span>
-                <input type="radio" name="pumpDosingMode" id="pumpDosingModeLiters" value="liters" />
-              </label>
-            </div>
-            <div id="pumpDosingMinutesWrap">
-              <label for="pumpDosingMinutes">{{ tr('dosing_minutes_label') }}</label>
-              <input type="number" id="pumpDosingMinutes" min="0.1" step="any" value="2" />
-            </div>
-            <div id="pumpDosingLitersWrap" hidden>
-              <div class="form-grid form-grid-2">
-                <div>
-                  <label for="pumpDosingLiters">{{ tr('dosing_liters_label') }}</label>
-                  <input type="number" id="pumpDosingLiters" min="0.01" step="any" value="1" />
-                </div>
-                <div>
-                  <label for="pumpFlowRateValue">{{ tr('flow_rate_label') }}</label>
-                  <div class="btn-group">
-                    <input type="number" id="pumpFlowRateValue" min="0" step="any" value="0" />
-                    <select id="pumpFlowRateUnit">
-                      <option value="l_min">{{ tr('flow_rate_unit_l_min') }}</option>
-                      <option value="ml_min">{{ tr('flow_rate_unit_ml_min') }}</option>
-                    </select>
-                  </div>
+              <div>
+                <label for="pumpFlowRateValue">{{ tr('flow_rate_label') }}</label>
+                <div class="btn-group">
+                  <input type="number" id="pumpFlowRateValue" min="0" step="any" value="0" />
+                  <select id="pumpFlowRateUnit">
+                    <option value="l_min">{{ tr('flow_rate_unit_l_min') }}</option>
+                    <option value="ml_min">{{ tr('flow_rate_unit_ml_min') }}</option>
+                  </select>
                 </div>
               </div>
             </div>
@@ -115,15 +116,9 @@
               <span>{{ tr('auto_water_label') }}</span>
               <input type="checkbox" id="pumpAutoWaterEnabled" />
             </label>
-            <div class="form-grid form-grid-2">
-              <div>
-                <label for="pumpAutoWaterCooldown">{{ tr('auto_water_cooldown_label') }}</label>
-                <input type="number" id="pumpAutoWaterCooldown" min="1" step="1" value="360" />
-              </div>
-              <div>
-                <label for="pumpActivePresetId">{{ tr('choose_preset') }}</label>
-                <select id="pumpActivePresetId"></select>
-              </div>
+            <div>
+              <label for="pumpAutoWaterCooldown">{{ tr('auto_water_cooldown_label') }}</label>
+              <input type="number" id="pumpAutoWaterCooldown" min="1" step="1" value="360" />
             </div>
 
             <div class="btn-group">

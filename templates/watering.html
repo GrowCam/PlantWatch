@@ -63,9 +63,8 @@
           {% if water_presets %}
           <div class="preset-run-row">
             <select id="pumpPresetSelect{{ pump.id }}">
-              <option value="">{{ tr('choose_preset') }}</option>
               {% for preset in water_presets %}
-              <option value="{{ preset.id }}" {% if preset.id == pump.active_preset_id %}selected{% endif %}>{{ preset.name }}</option>
+              <option value="{{ preset.id }}" {% if preset.id == pump.active_preset_id or (not pump.active_preset_id and loop.first) %}selected{% endif %}>{{ preset.name }} ({{ preset.value }} {{ 'L' if preset.mode == 'liters' else 'min' }})</option>
               {% endfor %}
             </select>
             <button type="button" class="ghost" data-pump-run-preset="{{ pump.id }}">{{ tr('run_preset') }}</button>
