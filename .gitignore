@@ -1,5 +1,6 @@
 # Credentials & instance config
 .env
+.github_push_token
 grow_data.json
 
 # Runtime data
