@@ -39,7 +39,7 @@
         {% for pump in group.pumps %}
         <div class="card pump-card" data-pump-id="{{ pump.id }}">
           <h3><span class="heading-emoji">🚰</span>{{ pump.name }}</h3>
-          {% if pump.sensor_id %}<small class="muted" id="pumpSensorState{{ pump.id }}">–</small>{% endif %}
+          {% if pump.sensor_id %}<small class="muted" id="pumpSensorState{{ pump.id }}" data-sensor-id="{{ pump.sensor_id }}">–</small>{% endif %}
           {% if pump.auto_water_enabled %}<span class="badge">{{ tr('auto_water_badge') }}</span>{% endif %}
           <p class="power-readout" id="pumpPower{{ pump.id }}">{{ tr('power_unknown') }}</p>
           <small class="muted" id="pumpCountdown{{ pump.id }}" hidden>–</small>

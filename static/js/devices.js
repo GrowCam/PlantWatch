@@ -18,6 +18,10 @@ const TXT = {
     missingName: "Bitte einen Namen eingeben.",
     modeMinutes: "Minuten (tippen für Liter)",
     modeLiters: "Liter (tippen für Minuten)",
+    inactive: "inaktiv",
+    noAlerting: "keine Erinnerung",
+    wet: "gefüllt",
+    dry: "leer",
   },
   en: {
     edit: "Edit",
@@ -28,6 +32,10 @@ const TXT = {
     missingName: "Please enter a name.",
     modeMinutes: "Minutes (tap for liters)",
     modeLiters: "Liters (tap for minutes)",
+    inactive: "inactive",
+    noAlerting: "no reminder",
+    wet: "filled",
+    dry: "empty",
   },
 };
 const t = (key) => (TXT[APP_LANG] && TXT[APP_LANG][key]) || TXT.de[key] || key;
@@ -354,6 +362,22 @@ async function deletePump(id) {
 
 // --- Water sensors ---
 
+function sensorStateLabel(sensor) {
+  if (sensor.state === "ON") return t("wet");
+  if (sensor.state === "OFF") return t("dry");
+  return "–";
+}
+
+function sensorSummary(sensor) {
+  const bits = [sensorStateLabel(sensor)];
+  const tent = sensor.tent_id ? tents.find((item) => item.id === sensor.tent_id) : null;
+  bits.push(tent ? tent.name : t("none"));
+  if (sensor.topic) bits.push(sensor.topic);
+  if (sensor.enabled === false) bits.push(t("inactive"));
+  if (sensor.alerting_enabled === false) bits.push(t("noAlerting"));
+  return bits.join(" · ");
+}
+
 function renderSensorList() {
   const list = $("#sensorCurrentList");
   if (!list) return;
@@ -366,7 +390,7 @@ function renderSensorList() {
         <li>
           <div class="icon-chip">🛟</div>
           <span>${sensor.name || `Sensor ${sensor.id}`}</span>
-          <span class="manage-list-meta">${sensor.state || "–"}</span>
+          <span class="manage-list-meta">${sensorSummary(sensor)}</span>
           <div class="inline-actions">
             <button type="button" class="ghost small" data-sensor-edit="${sensor.id}">${t("edit")}</button>
             <button type="button" class="ghost small danger" data-sensor-delete="${sensor.id}">${t("del")}</button>

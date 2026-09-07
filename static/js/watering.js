@@ -44,7 +44,7 @@ const PUMP_CARDS = Array.from(document.querySelectorAll(".pump-card")).map((el) 
 const pumpRuntime = {};
 PUMP_CARDS.forEach((p) => (pumpRuntime[p.id] = { state: null, power: null, timerRemaining: null }));
 
-const SENSOR_STATES = Array.from(document.querySelectorAll("[id^='waterLeakState']")).map((el) => ({
+const SENSOR_STATES = Array.from(document.querySelectorAll("[id^='waterLeakState'], [id^='pumpSensorState']")).map((el) => ({
   id: el.dataset.sensorId,
   el,
 }));
