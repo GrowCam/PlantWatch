@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 from lang import t
+import copy
+import fcntl
 import os
 import subprocess
 import sys
@@ -11,6 +13,7 @@ import json
 import html
 import shlex
 import unicodedata
+import threading
 from datetime import datetime, timedelta
 from collections import deque
 
@@ -29,11 +32,12 @@ PYTHON_CMD = VENV_PYTHON if os.path.exists(VENV_PYTHON) else sys.executable
 DASHBOARD_URL = os.getenv("DASHBOARD_URL", "http://localhost:5050")
 
 
-def _dashboard_action(action: str, command: str | None = None) -> dict:
+def _dashboard_action(action: str, command: str | None = None, **extra) -> dict:
     """Send a device action to the dashboard API. Returns the response dict or an error dict."""
     payload: dict = {"action": action}
     if command is not None:
         payload["command"] = command
+    payload.update(extra)
     try:
         r = requests.post(f"{DASHBOARD_URL}/api/action", json=payload, timeout=5)
         r.raise_for_status()
@@ -89,16 +93,58 @@ filename_pattern = re.compile(
 )
 
 # === JSON helpers ===
+_DATA_CACHE_LOCK = threading.Lock()
+_DATA_CACHE = {"mtime": None, "data": None}
+
+
 def load_data():
-    try:
-        with open(DATA_FILE, "r") as f:
-            return json.load(f)
-    except:
-        return {}
+    with _DATA_CACHE_LOCK:
+        try:
+            mtime = os.path.getmtime(DATA_FILE)
+        except OSError:
+            mtime = None
+        if _DATA_CACHE["data"] is not None and _DATA_CACHE["mtime"] == mtime:
+            return copy.deepcopy(_DATA_CACHE["data"])
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                data = json.load(f)
+        except FileNotFoundError:
+            data = {}
+        except json.JSONDecodeError as exc:
+            print(f"[grow_data] CORRUPT grow_data.json, using empty defaults: {exc}", flush=True)
+            data = {}
+        _DATA_CACHE["data"] = data
+        _DATA_CACHE["mtime"] = mtime
+        return copy.deepcopy(data)
+
 
 def save_data(data):
-    with open(DATA_FILE, "w") as f:
+    tmp_path = f"{DATA_FILE}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
         json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, DATA_FILE)
+    with _DATA_CACHE_LOCK:
+        _DATA_CACHE["data"] = copy.deepcopy(data)
+        try:
+            _DATA_CACHE["mtime"] = os.path.getmtime(DATA_FILE)
+        except OSError:
+            _DATA_CACHE["mtime"] = None
+
+
+def _append_watering_log(data, *, pump_id=None, duration_seconds=None, source):
+    log = data.setdefault("watering_log", [])
+    log.append({
+        "date": datetime.now().strftime("%Y-%m-%d"),
+        "timestamp": datetime.now().isoformat(),
+        "pump_id": pump_id,
+        "duration_seconds": duration_seconds,
+        "source": source,
+    })
+    del log[:-200]
 
 # === Telegram API helpers ===
 def get_updates():
@@ -547,6 +593,7 @@ def handle_message(message):
                 input_date = datetime.strptime(parts[0], "%d.%m.%Y")
 
             data["last_watering"] = input_date.strftime("%Y-%m-%d")
+            _append_watering_log(data, source="telegram")
             save_data(data)
             send_bot_message(t("water_saved", date=input_date.strftime(t("date_format"))))
         except ValueError:
@@ -776,6 +823,82 @@ def handle_message(message):
                 state_icon = {"ON": t("state_on"), "OFF": t("state_off")}.get(state, f"❓ {state or t('state_unknown')}")
                 power_str = f"  ({power:.0f}W)" if power is not None else ""
                 send_bot_message(f"{label}: {state_icon}{power_str}\n\n{t('device_tip', cmd=action_name)}")
+
+    elif command_base in {"/pump1", "/pump2"}:
+        pump_id = "1" if command_base == "/pump1" else "2"
+        action_name = "pump" if pump_id == "1" else "pump2"
+        default_label = t("pump1_label") if pump_id == "1" else t("pump2_label")
+        arg = command_args.strip().lower()
+        if arg in {"on", "ein", "an", "1"}:
+            result = _dashboard_action(action_name, "on")
+            label = result.get("device_name") or default_label
+            send_bot_message(result.get("message") or result.get("error") or t("cmd_on_sent", label=label))
+        elif arg in {"off", "aus", "0"}:
+            result = _dashboard_action(action_name, "off")
+            label = result.get("device_name") or default_label
+            send_bot_message(result.get("message") or result.get("error") or t("cmd_off_sent", label=label))
+        elif arg:
+            try:
+                minutes = float(arg.replace(",", "."))
+                if minutes <= 0:
+                    raise ValueError
+            except ValueError:
+                send_bot_message(t("pump_cmd_usage", cmd=command_base.lstrip("/")))
+            else:
+                result = _dashboard_action(action_name, "timer", minutes=minutes)
+                label = result.get("device_name") or default_label
+                send_bot_message(result.get("message") or result.get("error") or t("cmd_timer_sent", label=label, minutes=minutes))
+        else:
+            result = _dashboard_action(f"{action_name}_state")
+            if result.get("error"):
+                send_bot_message(f"❌ {result['error']}")
+            else:
+                state_key = "pump_state" if pump_id == "1" else "pump2_state"
+                state = result.get(state_key)
+                power = result.get("power_w")
+                label = result.get("device_name") or default_label
+                state_icon = {"ON": t("state_on"), "OFF": t("state_off")}.get(state, f"❓ {state or t('state_unknown')}")
+                power_str = f"  ({power:.0f}W)" if power is not None else ""
+                send_bot_message(f"{label}: {state_icon}{power_str}\n\n{t('pump_device_tip', cmd=command_base.lstrip('/'))}")
+
+    elif command_base == "/pump":
+        parts = command_args.strip().split(maxsplit=1)
+        if not parts:
+            send_bot_message(t("pump_generic_usage"))
+        else:
+            pump_id = parts[0]
+            arg = parts[1].strip().lower() if len(parts) > 1 else ""
+            default_label = t("pump_default_label", n=pump_id)
+            if arg in {"on", "ein", "an", "1"}:
+                result = _dashboard_action("pump", "on", pump_id=pump_id)
+                label = result.get("device_name") or default_label
+                send_bot_message(result.get("message") or result.get("error") or t("cmd_on_sent", label=label))
+            elif arg in {"off", "aus", "0"}:
+                result = _dashboard_action("pump", "off", pump_id=pump_id)
+                label = result.get("device_name") or default_label
+                send_bot_message(result.get("message") or result.get("error") or t("cmd_off_sent", label=label))
+            elif arg:
+                try:
+                    minutes = float(arg.replace(",", "."))
+                    if minutes <= 0:
+                        raise ValueError
+                except ValueError:
+                    send_bot_message(t("pump_generic_usage"))
+                else:
+                    result = _dashboard_action("pump", "timer", minutes=minutes, pump_id=pump_id)
+                    label = result.get("device_name") or default_label
+                    send_bot_message(result.get("message") or result.get("error") or t("cmd_timer_sent", label=label, minutes=minutes))
+            else:
+                result = _dashboard_action("pump_state", pump_id=pump_id)
+                if result.get("error"):
+                    send_bot_message(f"❌ {result['error']}")
+                else:
+                    state = result.get("state")
+                    power = result.get("power_w")
+                    label = result.get("device_name") or default_label
+                    state_icon = {"ON": t("state_on"), "OFF": t("state_off")}.get(state, f"❓ {state or t('state_unknown')}")
+                    power_str = f"  ({power:.0f}W)" if power is not None else ""
+                    send_bot_message(f"{label}: {state_icon}{power_str}\n\n{t('pump_device_tip', cmd=f'pump {pump_id}')}")
 
     else:
         send_bot_message(t("unknown_command"))

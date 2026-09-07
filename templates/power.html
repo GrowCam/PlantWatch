@@ -113,5 +113,5 @@
     <script>
       window.POWER_SUMMARY = {{ power_summary|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/power.js') }}" defer></script>
+    <script src="{{ static_url('js/power.js') }}" defer></script>
 {% endblock %}

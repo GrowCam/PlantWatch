@@ -151,5 +151,5 @@
       window.CURRENT_FERT_WEEK = {{ dashboard.stats.current_week|tojson }};
       window.HIGHLIGHT_FERT_WEEK = {{ highlight_week|tojson }};
     </script>
-    <script src="{{ url_for('static', filename='js/fertilizer.js') }}" defer></script>
+    <script src="{{ static_url('js/fertilizer.js') }}" defer></script>
 {% endblock %}

@@ -172,11 +172,18 @@ _STRINGS: dict[str, dict[str, str]] = {
     "cmd_on_sent":   {"de": "{label} EIN-Befehl gesendet.", "en": "{label} ON command sent."},
     "cmd_off_sent":  {"de": "{label} AUS-Befehl gesendet.", "en": "{label} OFF command sent."},
     "device_tip":    {"de": "Tipp: /{cmd} on  oder  /{cmd} off", "en": "Tip: /{cmd} on  or  /{cmd} off"},
+    "pump1_label":     {"de": "🚰 Pumpe 1",  "en": "🚰 Pump 1"},
+    "pump2_label":     {"de": "🚰 Pumpe 2",  "en": "🚰 Pump 2"},
+    "pump_default_label": {"de": "🚰 Pumpe {n}", "en": "🚰 Pump {n}"},
+    "pump_cmd_usage":  {"de": "⚠️ Nutzung: /{cmd} on|off|<Minuten>", "en": "⚠️ Usage: /{cmd} on|off|<minutes>"},
+    "pump_generic_usage": {"de": "⚠️ Nutzung: /pump <ID> on|off|<Minuten>", "en": "⚠️ Usage: /pump <id> on|off|<minutes>"},
+    "cmd_timer_sent":  {"de": "{label} Timer gestartet: {minutes} Minuten.", "en": "{label} timer started: {minutes} minutes."},
+    "pump_device_tip": {"de": "Tipp: /{cmd} on, /{cmd} off oder /{cmd} <Minuten>", "en": "Tip: /{cmd} on, /{cmd} off or /{cmd} <minutes>"},
 
     # Unknown command
     "unknown_command": {
-        "de": "🤖 Unbekannter Befehl. Nutze /foto, /foto_only, /temp, /lapse, /water, /info, /fert, /fert_set, /flower, /veg, /heater, /abluft, /licht oder /logs cam.",
-        "en": "🤖 Unknown command. Use /foto, /foto_only, /temp, /lapse, /water, /info, /fert, /fert_set, /flower, /veg, /heater, /exhaust, /light or /logs cam.",
+        "de": "🤖 Unbekannter Befehl. Nutze /foto, /foto_only, /temp, /lapse, /water, /info, /fert, /fert_set, /flower, /veg, /heater, /abluft, /licht, /pump1, /pump2, /pump <ID> oder /logs cam.",
+        "en": "🤖 Unknown command. Use /foto, /foto_only, /temp, /lapse, /water, /info, /fert, /fert_set, /flower, /veg, /heater, /exhaust, /light, /pump1, /pump2, /pump <id> or /logs cam.",
     },
 
     # check_watering.py

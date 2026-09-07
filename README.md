@@ -42,7 +42,7 @@ Watch your plants grow — literally.
 - **Climate data in every filename** — temperature and humidity are embedded in the filename so you can correlate photos with conditions at a glance
 - **Lights-only mode** — optionally capture photos only while the lights are on, so your timelapse stays clean
 - **One-click MP4 generation** — hit a button in the dashboard or ask the Telegram bot to compile all your photos into a video
-- **Photo gallery** — browse, view, and download your timelapse shots directly from the dashboard
+- **Latest photo preview** — see your most recent timelapse shot right on the dashboard (a full browsable gallery is on the roadmap)
 - **Camera controls** — adjust brightness, contrast, saturation, sharpness, focus, and exposure from the UI — no SSH needed
 
 ---
@@ -65,7 +65,7 @@ Full remote control from your phone, anywhere in the world.
 ### 💧 Watering & Fertilizer Tracking
 Never lose track of your feed schedule again.
 
-- **Log every watering** with date — via the dashboard or Telegram
+- **Log every watering** with date, pump used, and duration — via the dashboard or Telegram, with a full history view
 - **See days since last watering** at a glance on the dashboard
 - **Daily reminder** — PlantWatch checks every evening and messages you if it's been too long
 - **Fertilizer catalogue** — define your own nutrients with custom names

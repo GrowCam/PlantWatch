@@ -11,9 +11,12 @@
     <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700&display=swap" />
     <link
       rel="stylesheet"
-      href="{{ url_for('static', filename='css/dashboard.css') }}"
+      href="{{ static_url('css/dashboard.css') }}"
     />
-    <script src="{{ url_for('static', filename='vendor/Sortable.min.js') }}" defer></script>
+    <link rel="manifest" href="{{ static_url('manifest.json') }}" />
+    <link rel="apple-touch-icon" href="{{ static_url('images/apple-touch-icon.png') }}" />
+    <meta name="theme-color" content="#14b8a6" />
+    <script src="{{ static_url('vendor/Sortable.min.js') }}" defer></script>
     {% block extra_head %}{% endblock %}
   </head>
   <body data-theme="{{ ui_settings.appearance_theme }}" data-accent="{{ ui_settings.accent_theme }}" style="--accent: {{ ui_settings.accent_primary }}; --accent-2: {{ ui_settings.accent_secondary }};" class="compact-ui">
@@ -147,6 +150,28 @@
           return `detailsOpen:${path}:${keySource}`;
         };
 
+        const getSpanStorageKey = (path, source) => `cardSpan:${path}:${source}`;
+
+        const setupSpanToggle = (card, headerNode, keySource) => {
+          const spanBtn = document.createElement("button");
+          spanBtn.type = "button";
+          spanBtn.className = "card-span-toggle";
+          spanBtn.setAttribute("aria-label", "Toggle card width");
+          spanBtn.textContent = "⤢";
+          headerNode.appendChild(spanBtn);
+
+          const storageKey = getSpanStorageKey(window.location.pathname, keySource);
+          const setWide = (wide) => {
+            card.classList.toggle("card-span-wide", wide);
+            spanBtn.classList.toggle("is-active", wide);
+            localStorage.setItem(storageKey, wide ? "true" : "false");
+          };
+          setWide(localStorage.getItem(storageKey) === "true");
+          spanBtn.addEventListener("click", () => {
+            setWide(!card.classList.contains("card-span-wide"));
+          });
+        };
+
         document.querySelectorAll("details.card").forEach((details, index) => {
           const summary = details.querySelector("summary");
           const summaryText = summary?.textContent || "";
@@ -210,6 +235,9 @@
           dragHandle.textContent = "⠿";
           headerNode.appendChild(dragHandle);
 
+          const keySource = storageSource || slugify(headerLabel) || `card-${index}`;
+          setupSpanToggle(card, headerNode, keySource);
+
           const bodyWrap = document.createElement("div");
           bodyWrap.className = "card-collapsible-body";
           Array.from(card.children).forEach((child) => {
@@ -219,7 +247,6 @@
           });
           card.appendChild(bodyWrap);
 
-          const keySource = storageSource || slugify(headerLabel) || `card-${index}`;
           const storageKey = getToggleStorageKey(window.location.pathname, keySource, index);
           const savedOpen = localStorage.getItem(storageKey);
           const setCardOpen = (open) => {
@@ -236,8 +263,8 @@
           card.dataset.toggleReady = "true";
         });
 
-        // Add drag handles to details.card elements (their summary acts as the header)
-        document.querySelectorAll("details.card").forEach((details) => {
+        // Add drag handles + width toggle to details.card elements (summary acts as header)
+        document.querySelectorAll("details.card").forEach((details, index) => {
           const summary = details.querySelector(":scope > summary");
           if (!summary || summary.querySelector(".card-drag-handle")) return;
           const dragHandle = document.createElement("button");
@@ -246,6 +273,10 @@
           dragHandle.setAttribute("aria-label", "Reorder card");
           dragHandle.textContent = "⠿";
           summary.appendChild(dragHandle);
+
+          const summaryText = summary.textContent || "";
+          const keySource = details.id || details.dataset.toggleKey || slugify(summaryText) || `details-${index}`;
+          setupSpanToggle(details, summary, keySource);
         });
 
         const layoutToggles = document.querySelectorAll("[data-layout-toggle]");
@@ -373,6 +404,11 @@
         });
         setLayoutEditMode(localStorage.getItem(layoutModeKey) === "true");
       });
+    </script>
+    <script>
+      if ("serviceWorker" in navigator) {
+        navigator.serviceWorker.register("/sw.js");
+      }
     </script>
     {% block extra_scripts %}{% endblock %}
   </body>

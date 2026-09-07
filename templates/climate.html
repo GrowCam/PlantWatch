@@ -274,6 +274,13 @@
               <span>{{ tr('debug_notify') }}</span>
               <input type="checkbox" id="humidityDebugNotify" {% if (humidity_settings.control_method == 'exhaust' and exhaust_settings.debug_notify) or (humidity_settings.control_method != 'exhaust' and humidity_settings.debug_notify) %}checked{% endif %} />
             </label>
+            {% if humidity_devices_enabled %}
+            <label class="toggle" for="humidityVpdAutopilot">
+              <span>{{ tr('vpd_autopilot_enabled') }}</span>
+              <input type="checkbox" id="humidityVpdAutopilot" {% if humidity_settings.vpd_autopilot_enabled %}checked{% endif %} />
+            </label>
+            <small class="hint-text">{{ tr('vpd_autopilot_copy') }}</small>
+            {% endif %}
             {% if humidity_has_exhaust %}
             <label class="toggle" for="exhaustDebugCardEnabled">
               <span>{{ tr('exhaust_debug_card_enabled') }}</span>
@@ -458,11 +465,12 @@
             <li><span>{{ tr('last_decision') }}</span><strong id="humidityDebugReason">–</strong></li>
             <li><span>{{ tr('last_change_reason') }}</span><strong id="humidityDebugChange">–</strong></li>
             <li><span>{{ tr('humidity_band') }}</span><strong id="humidityDebugBand">–</strong></li>
+            <li><span>{{ tr('vpd_autopilot_enabled') }}</span><strong id="humidityDebugVpdAutopilot">–</strong></li>
           </ul>
         </details>
         {% endif %}
       </section>
 {% endblock %}
 {% block extra_scripts %}
-    <script src="{{ url_for('static', filename='js/climate.js') }}" defer></script>
+    <script src="{{ static_url('js/climate.js') }}" defer></script>
 {% endblock %}

@@ -600,6 +600,7 @@ async function saveHumidityDefaults() {
     action: "humidity_defaults",
     enabled: $("#humidityEnabled")?.checked || false,
     debug_notify: $("#humidityDebugNotify")?.checked || false,
+    vpd_autopilot_enabled: $("#humidityVpdAutopilot")?.checked || false,
     control_method: controlMethod,
     exhaust_control_mode: $("#exhaustControlMode")?.value || "sensor",
     rh_upper_threshold: parseFloat($("#humidityUpper")?.value || "0"),
@@ -684,6 +685,10 @@ async function loadHumidityDebug() {
     setText("humidityDebugReason", data.last_reason || "–");
     setText("humidityDebugChange", data.last_change_reason || "–");
     setText("humidityDebugBand", `${data.rh_lower_threshold ?? "–"}% / ${data.rh_upper_threshold ?? "–"}%`);
+    setText(
+      "humidityDebugVpdAutopilot",
+      data.vpd_autopilot_active ? "🌿 active" : data.vpd_autopilot_enabled ? "enabled, waiting for reading" : "off"
+    );
   } catch (err) {
     console.warn("Humidity debug fetch failed", err);
   }

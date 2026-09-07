@@ -3,6 +3,8 @@
 
 from __future__ import annotations
 
+import copy
+import fcntl
 import glob
 import json
 import math
@@ -30,7 +32,7 @@ try:
 except Exception:
     mqtt = None
 
-from flask import Flask, jsonify, render_template, request, send_file, abort
+from flask import Flask, jsonify, render_template, request, send_file, abort, url_for
 
 SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
 DATA_FILE = os.path.join(SCRIPT_DIR, "grow_data.json")
@@ -60,6 +62,7 @@ TRANSLATIONS = {
     "nav_dashboard": {"de": "Dashboard", "en": "Dashboard"},
     "nav_fertilizer": {"de": "Dünger", "en": "Fertilizer"},
     "nav_watering": {"de": "Bewässerung", "en": "Watering"},
+    "nav_devices": {"de": "Geräte", "en": "Devices"},
     "nav_climate": {"de": "Klima", "en": "Climate"},
     "nav_power": {"de": "Verbrauch", "en": "Power"},
     "nav_light": {"de": "Licht", "en": "Light"},
@@ -136,14 +139,65 @@ TRANSLATIONS = {
     "heater_debug_card_enabled": {"de": "Heizungs-Debug anzeigen", "en": "Show heater debug"},
     "exhaust_debug_card_enabled": {"de": "Abluft-Debug anzeigen", "en": "Show exhaust debug"},
     "light_debug_card_enabled": {"de": "Licht-Debug anzeigen", "en": "Show light debug"},
-    "pump_topic": {"de": "Pumpen-Topic", "en": "Pump topic"},
-    "heater_topic": {"de": "Heizungs-Topic", "en": "Heater topic"},
-    "exhaust_topic": {"de": "Abluft-Topic", "en": "Exhaust topic"},
-    "light_topic": {"de": "Licht-Topic", "en": "Light topic"},
-    "dehumidifier_topic": {"de": "Entfeuchter-Topic", "en": "Dehumidifier topic"},
-    "humidifier_topic": {"de": "Luftbefeuchter-Topic", "en": "Humidifier topic"},
-    "water_sensor_topic": {"de": "Reservoir-Sensor-Topic", "en": "Reservoir sensor topic"},
-    "mqtt_restart_hint": {"de": "Topic- oder Broker-Änderungen greifen für Hintergrund-Monitore nach einem Service-Neustart sicher vollständig.", "en": "Broker or topic changes apply fully for background monitors after a service restart."},
+    "pump_topic": {"de": "Pumpen-Gerätename", "en": "Pump device name"},
+    "pump1_default_label": {"de": "Pumpe 1", "en": "Pump 1"},
+    "pump2_default_label": {"de": "Pumpe 2", "en": "Pump 2"},
+    "pump_default_label": {"de": "Pumpe {n}", "en": "Pump {n}"},
+    "pump_saved": {"de": "Pumpe gespeichert.", "en": "Pump saved."},
+    "pump_deleted": {"de": "Pumpe gelöscht.", "en": "Pump deleted."},
+    "water_sensor_saved": {"de": "Sensor gespeichert.", "en": "Sensor saved."},
+    "water_sensor_deleted": {"de": "Sensor gelöscht.", "en": "Sensor deleted."},
+    "tent_saved": {"de": "Zelt gespeichert.", "en": "Tent saved."},
+    "tent_deleted": {"de": "Zelt gelöscht.", "en": "Tent deleted."},
+    "preset_saved": {"de": "Preset gespeichert.", "en": "Preset saved."},
+    "preset_deleted": {"de": "Preset gelöscht.", "en": "Preset deleted."},
+    "manage_pumps": {"de": "Pumpen verwalten", "en": "Manage pumps"},
+    "manage_sensors": {"de": "Sensoren verwalten", "en": "Manage sensors"},
+    "manage_tents": {"de": "Zelte verwalten", "en": "Manage tents"},
+    "manage_presets": {"de": "Presets verwalten", "en": "Manage presets"},
+    "no_pumps": {"de": "Noch keine Pumpen angelegt.", "en": "No pumps yet."},
+    "no_sensors": {"de": "Noch keine Sensoren angelegt.", "en": "No sensors yet."},
+    "no_tents": {"de": "Noch keine Zelte angelegt.", "en": "No tents yet."},
+    "no_presets": {"de": "Noch keine Presets angelegt.", "en": "No presets yet."},
+    "add_pump": {"de": "Pumpe hinzufügen", "en": "Add pump"},
+    "add_sensor": {"de": "Sensor hinzufügen", "en": "Add sensor"},
+    "add_tent": {"de": "Zelt hinzufügen", "en": "Add tent"},
+    "add_preset": {"de": "Preset hinzufügen", "en": "Add preset"},
+    "tent_label": {"de": "Zelt", "en": "Tent"},
+    "no_tent": {"de": "— kein Zelt —", "en": "— none —"},
+    "no_sensor": {"de": "— kein Sensor —", "en": "— none —"},
+    "no_preset": {"de": "— kein Preset —", "en": "— none —"},
+    "attached_sensor_label": {"de": "Zugewiesener Sensor", "en": "Attached sensor"},
+    "auto_water_label": {"de": "Auto-Bewässerung aktiv", "en": "Auto-watering enabled"},
+    "auto_water_cooldown_label": {"de": "Abklingzeit (Minuten)", "en": "Cooldown (minutes)"},
+    "dosing_mode_label": {"de": "Dosierungsart", "en": "Dosing mode"},
+    "dosing_minutes_label": {"de": "Laufzeit (Minuten)", "en": "Runtime (minutes)"},
+    "dosing_liters_label": {"de": "Menge (Liter)", "en": "Amount (liters)"},
+    "flow_rate_label": {"de": "Kalibrierte Flussrate", "en": "Calibrated flow rate"},
+    "flow_rate_unit_l_min": {"de": "L/min", "en": "L/min"},
+    "flow_rate_unit_ml_min": {"de": "ml/min", "en": "ml/min"},
+    "preset_mode_minutes": {"de": "Minuten", "en": "Minutes"},
+    "preset_mode_liters": {"de": "Liter", "en": "Liters"},
+    "choose_preset": {"de": "Preset wählen…", "en": "Choose preset…"},
+    "run_preset": {"de": "Preset ausführen", "en": "Run preset"},
+    "auto_water_badge": {"de": "Auto-Bewässerung", "en": "Auto-watering"},
+    "devices_settings_moved_title": {"de": "Geräteverwaltung umgezogen", "en": "Device management has moved"},
+    "devices_settings_moved_copy": {"de": "Pumpen, Sensoren, Zelte und Presets werden jetzt verwaltet unter", "en": "Pumps, sensors, tents and presets are now managed under"},
+    "name": {"de": "Name", "en": "Name"},
+    "notes": {"de": "Notizen", "en": "Notes"},
+    "alerting_enabled_label": {"de": "24h-Trocken-Erinnerung aktiv", "en": "24h dry reminder enabled"},
+    "pump2_enabled": {"de": "Pumpe 2 aktiv", "en": "Pump 2 enabled"},
+    "pump2_topic": {"de": "Pumpe-2-Gerätename", "en": "Pump 2 device name"},
+    "pump_name_label": {"de": "Pumpe-1-Name (optional)", "en": "Pump 1 name (optional)"},
+    "pump2_name_label": {"de": "Pumpe-2-Name (optional)", "en": "Pump 2 name (optional)"},
+    "heater_topic": {"de": "Heizungs-Gerätename", "en": "Heater device name"},
+    "exhaust_topic": {"de": "Abluft-Gerätename", "en": "Exhaust device name"},
+    "light_topic": {"de": "Licht-Gerätename", "en": "Light device name"},
+    "dehumidifier_topic": {"de": "Entfeuchter-Gerätename", "en": "Dehumidifier device name"},
+    "humidifier_topic": {"de": "Luftbefeuchter-Gerätename", "en": "Humidifier device name"},
+    "water_sensor_topic": {"de": "Reservoir-Sensor-Gerätename", "en": "Reservoir sensor device name"},
+    "zigbee_topic_hint": {"de": "Nur der Zigbee2MQTT-Gerätename, z. B. „pump“ oder „heizung_keller“ — das vollständige Topic (zigbee2mqtt/<Name>/set) wird automatisch gebildet.", "en": "Just the Zigbee2MQTT device name, e.g. \"pump\" or \"heizung_keller\" — the full topic (zigbee2mqtt/<name>/set) is built automatically."},
+    "mqtt_restart_hint": {"de": "Namens- oder Broker-Änderungen greifen für Hintergrund-Monitore nach einem Service-Neustart sicher vollständig.", "en": "Broker or device name changes apply fully for background monitors after a service restart."},
     "switchbot_settings": {"de": "SwitchBot Sensor", "en": "SwitchBot Sensor"},
     "camera_settings": {"de": "Kamera", "en": "Camera"},
     "camera_test_image": {"de": "Testbild", "en": "Test image"},
@@ -202,6 +256,11 @@ TRANSLATIONS = {
     "cycle_off_seconds": {"de": "Zyklus AUS (Sek.)", "en": "Cycle OFF (sec)"},
     "rh_upper_threshold": {"de": "RLF EIN Entfeuchter ab (%)", "en": "RH dehumidifier on above (%)"},
     "rh_lower_threshold": {"de": "RLF EIN Befeuchter unter (%)", "en": "RH humidifier on below (%)"},
+    "vpd_autopilot_enabled": {"de": "VPD-Autopilot", "en": "VPD autopilot"},
+    "vpd_autopilot_copy": {
+        "de": "Berechnet die RLF-Schwellen automatisch aus dem VPD-Zielbereich der aktuellen Wachstumswoche, statt fixer Werte.",
+        "en": "Computes RH thresholds automatically from the current grow week's VPD target band, instead of fixed values.",
+    },
     "lights_on_start": {"de": "Licht an beginnt", "en": "Lights on starts"},
     "lights_on_end": {"de": "Licht an endet", "en": "Lights on ends"},
     "lights_on_window": {"de": "Licht-an-Fenster", "en": "Lights-on window"},
@@ -302,6 +361,10 @@ TRANSLATIONS = {
         "en": "Automatic control with separate lights-on/lights-off targets, hysteresis and minimum runtimes to avoid short cycling.",
     },
     "status_unknown": {"de": "Status: unbekannt", "en": "Status: unknown"},
+    "system_status": {"de": "Systemstatus", "en": "System status"},
+    "status_ok": {"de": "OK", "en": "OK"},
+    "status_warning": {"de": "Warnung", "en": "Warning"},
+    "status_error": {"de": "Fehler", "en": "Error"},
     "power_unknown": {"de": "Leistung: – W", "en": "Power: – W"},
     "open_menu": {"de": "Menü öffnen", "en": "Open menu"},
     "no_sensor_values": {"de": "Noch keine Sensorwerte gespeichert.", "en": "No sensor readings stored yet."},
@@ -371,6 +434,12 @@ TRANSLATIONS = {
     "reservoir_sensor": {"de": "Reservoir Sensor", "en": "Reservoir Sensor"},
     "wick_reservoir": {"de": "Reservoir", "en": "Reservoir"},
     "reservoir_copy": {"de": "Trocken = leer, nass = Wasser vorhanden", "en": "Dry = empty, wet = water available"},
+    "watering_history": {"de": "Bewässerungsverlauf", "en": "Watering history"},
+    "watering_history_empty": {"de": "Noch keine Einträge.", "en": "No entries yet."},
+    "watering_source_manual": {"de": "Manuell", "en": "Manual"},
+    "watering_source_telegram": {"de": "Telegram", "en": "Telegram"},
+    "watering_source_auto": {"de": "Automatisch", "en": "Automatic"},
+    "watering_source_auto_moisture": {"de": "Auto (Sensor)", "en": "Auto (sensor)"},
     "fertilizer_title": {"de": "Düngerplanung", "en": "Fertilizer Planning"},
     "current_week_phase": {"de": "Aktuelle Woche: {week} · {phase}", "en": "Current week: {week} · {phase}"},
     "current_dosage": {"de": "Aktuelle Dosierung", "en": "Current dosage"},
@@ -445,6 +514,7 @@ MQTT_PASSWORD = os.getenv("MQTT_PASSWORD")
 TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID")
 PUMP_TOPIC = os.getenv("PUMP_TOPIC", "zigbee2mqtt/pump/set")
+PUMP2_TOPIC = os.getenv("PUMP2_TOPIC", "")
 HEATER_TOPIC = os.getenv("HEATER_TOPIC", os.getenv("DEHUMIDIFIER_TOPIC", "zigbee2mqtt/heizung_keller/set"))
 LIGHT_TOPIC = os.getenv("LIGHT_TOPIC", "zigbee2mqtt/light/set")
 DEHUMIDIFIER_TOPIC = os.getenv("DEHUMIDIFIER_TOPIC", "zigbee2mqtt/dehumidifier/set")
@@ -454,6 +524,28 @@ MQTT_WS_PATH = os.getenv("MQTT_WS_PATH", "/")
 WATER_SENSOR_TOPIC = os.getenv("WATER_SENSOR_TOPIC", "zigbee2mqtt/Wassermelder_keller")
 SWITCHBOT_MAC = os.getenv("SWITCHBOT_MAC", "")
 SWITCHBOT_SCAN_TIMEOUT = int(os.getenv("SWITCHBOT_SCAN_TIMEOUT", "15"))
+
+ZIGBEE_TOPIC_PREFIX = "zigbee2mqtt/"
+
+
+def _extract_device_name(value: str | None) -> str:
+    """Settings store just the Zigbee2MQTT device name; this also accepts a
+    full legacy topic (from an existing grow_data.json or env default) and
+    strips the fixed zigbee2mqtt/…/set wrapper down to the bare name."""
+    v = (value or "").strip()
+    if v.startswith(ZIGBEE_TOPIC_PREFIX):
+        v = v[len(ZIGBEE_TOPIC_PREFIX):]
+    if v.endswith("/set"):
+        v = v[: -len("/set")]
+    return v.strip("/")
+
+
+def _actuator_topic(name: str) -> str:
+    return f"{ZIGBEE_TOPIC_PREFIX}{name}/set" if name else ""
+
+
+def _sensor_topic(name: str) -> str:
+    return f"{ZIGBEE_TOPIC_PREFIX}{name}" if name else ""
 WATER_GUARD_ENABLED = os.getenv("WATER_GUARD_ENABLED", "1").lower() in ("1", "true", "yes")
 DEFAULT_HEATER_SETTINGS = {
     "enabled": os.getenv("HEATER_CONTROL_ENABLED", "1").lower() in ("1", "true", "yes"),
@@ -513,6 +605,7 @@ DEFAULT_TIMELAPSE_SETTINGS = {
 DEFAULT_HUMIDITY_SETTINGS = {
     "enabled": False,
     "debug_notify": False,
+    "vpd_autopilot_enabled": False,
     "control_method": "devices",
     "exhaust_control_mode": "sensor",
     "rh_upper_threshold": float(os.getenv("RH_UPPER_THRESHOLD", "66")),
@@ -529,9 +622,8 @@ DEFAULT_POWER_SETTINGS = {
     "price_per_kwh": float(os.getenv("POWER_PRICE_PER_KWH", "0.30")),
 }
 
-PUMP_TIMER_LOCK = threading.Lock()
-PUMP_TIMER_DEADLINE: datetime | None = None
-PUMP_TIMER_THREAD: threading.Timer | None = None
+PUMP_RUNTIME: Dict[str, Dict[str, Any]] = {}
+PUMP_AUTO_WATER_MIN_SECONDS = 300
 LIVE_SENSOR_CACHE_LOCK = threading.Lock()
 LIVE_SENSOR_CACHE: Dict[str, Any] = {"reading": None, "fetched_at": None}
 _FS_CACHE: Dict[str, tuple] = {}  # key -> (monotonic_time, result)
@@ -549,6 +641,7 @@ MENU_ITEM_DEFS = [
     {"id": "dashboard", "endpoint": "index", "icon": "📊", "label_key": "nav_dashboard"},
     {"id": "fertilizer", "endpoint": "fertilizer_page", "icon": "🧪", "label_key": "nav_fertilizer"},
     {"id": "watering", "endpoint": "watering_page", "icon": "💧", "label_key": "nav_watering"},
+    {"id": "devices", "endpoint": "devices_page", "icon": "🧰", "label_key": "nav_devices"},
     {"id": "climate", "endpoint": "climate_page", "icon": "🌡️", "label_key": "nav_climate"},
     {"id": "power", "endpoint": "power_page", "icon": "⚡", "label_key": "nav_power"},
     {"id": "light", "endpoint": "light_page", "icon": "💡", "label_key": "nav_light"},
@@ -557,19 +650,46 @@ MENU_ITEM_DEFS = [
 ]
 
 
+_DATA_CACHE_LOCK = threading.Lock()
+_DATA_CACHE: Dict[str, Any] = {"mtime": None, "data": None}
+
+
 def load_data() -> Dict[str, Any]:
-    try:
-        with open(DATA_FILE, "r", encoding="utf-8") as f:
-            return json.load(f)
-    except FileNotFoundError:
-        return {}
-    except json.JSONDecodeError:
-        return {}
+    with _DATA_CACHE_LOCK:
+        try:
+            mtime = os.path.getmtime(DATA_FILE)
+        except OSError:
+            mtime = None
+        if _DATA_CACHE["data"] is not None and _DATA_CACHE["mtime"] == mtime:
+            return copy.deepcopy(_DATA_CACHE["data"])
+        try:
+            with open(DATA_FILE, "r", encoding="utf-8") as f:
+                fcntl.flock(f.fileno(), fcntl.LOCK_SH)
+                data = json.load(f)
+        except FileNotFoundError:
+            data = {}
+        except json.JSONDecodeError as exc:
+            print(f"[grow_data] CORRUPT grow_data.json, using empty defaults: {exc}", flush=True)
+            data = {}
+        _DATA_CACHE["data"] = data
+        _DATA_CACHE["mtime"] = mtime
+        return copy.deepcopy(data)
 
 
 def save_data(data: Dict[str, Any]) -> None:
-    with open(DATA_FILE, "w", encoding="utf-8") as f:
+    tmp_path = f"{DATA_FILE}.tmp"
+    with open(tmp_path, "w", encoding="utf-8") as f:
+        fcntl.flock(f.fileno(), fcntl.LOCK_EX)
         json.dump(data, f, indent=2)
+        f.flush()
+        os.fsync(f.fileno())
+    os.replace(tmp_path, DATA_FILE)
+    with _DATA_CACHE_LOCK:
+        _DATA_CACHE["data"] = copy.deepcopy(data)
+        try:
+            _DATA_CACHE["mtime"] = os.path.getmtime(DATA_FILE)
+        except OSError:
+            _DATA_CACHE["mtime"] = None
 
 
 def _default_menu_order() -> List[str]:
@@ -631,6 +751,93 @@ def _normalize_hex_color(value: Any, fallback: str) -> str:
     return fallback
 
 
+def _next_id(items: List[Dict[str, Any]]) -> str:
+    nums = []
+    for it in items:
+        try:
+            nums.append(int(it.get("id")))
+        except (TypeError, ValueError):
+            pass
+    return str((max(nums) + 1) if nums else 1)
+
+
+def _migrate_legacy_pumps_and_sensors(data: Dict[str, Any]) -> bool:
+    """One-shot upgrade: synthesize pumps/water_sensors/water_presets/tents lists
+    from the legacy flat app_settings keys (and the old singular water_reservoir
+    dict) if the new lists are absent. Returns True if `data` was mutated (caller
+    must save_data())."""
+    mutated = False
+    settings = data.get("app_settings", {}) if isinstance(data.get("app_settings"), dict) else {}
+    legacy_reservoir = data.get("water_reservoir", {}) if isinstance(data.get("water_reservoir"), dict) else {}
+    if not isinstance(data.get("pumps"), list):
+        has_sensor = bool(legacy_reservoir or settings.get("water_sensor_topic"))
+        data["pumps"] = [
+            {
+                "id": "1", "name": settings.get("pump_name", ""), "enabled": bool(settings.get("pump_enabled", True)),
+                "topic": settings.get("pump_topic", ""), "tent_id": None,
+                "sensor_id": "1" if has_sensor else None,
+                "auto_water_enabled": False, "auto_water_cooldown_minutes": 360,
+                "dosing_mode": "minutes", "dosing_minutes": 2.0, "dosing_liters": 1.0,
+                "flow_rate_value": 0.0, "flow_rate_unit": "l_min",
+                "active_preset_id": None, "last_auto_water_at": None,
+            },
+            {
+                "id": "2", "name": settings.get("pump2_name", ""), "enabled": bool(settings.get("pump2_enabled", False)),
+                "topic": settings.get("pump2_topic", ""), "tent_id": None, "sensor_id": None,
+                "auto_water_enabled": False, "auto_water_cooldown_minutes": 360,
+                "dosing_mode": "minutes", "dosing_minutes": 2.0, "dosing_liters": 1.0,
+                "flow_rate_value": 0.0, "flow_rate_unit": "l_min",
+                "active_preset_id": None, "last_auto_water_at": None,
+            },
+        ]
+        mutated = True
+    if not isinstance(data.get("water_sensors"), list):
+        data["water_sensors"] = [{
+            "id": "1", "name": "", "enabled": bool(settings.get("water_sensor_enabled", True)),
+            "topic": settings.get("water_sensor_topic", ""), "tent_id": None, "alerting_enabled": True,
+            "state": legacy_reservoir.get("state"), "dry_since": legacy_reservoir.get("dry_since"),
+            "wet_since": legacy_reservoir.get("wet_since"),
+            "first_alert_sent": bool(legacy_reservoir.get("first_alert_sent", False)),
+            "repeat_alert_sent": bool(legacy_reservoir.get("repeat_alert_sent", False)),
+        }]
+        mutated = True
+    if not isinstance(data.get("water_presets"), list):
+        data["water_presets"] = []
+        mutated = True
+    if not isinstance(data.get("tents"), list):
+        data["tents"] = []
+        mutated = True
+    return mutated
+
+
+def get_tents() -> List[Dict[str, Any]]:
+    return load_data().get("tents", [])
+
+
+def get_pumps() -> List[Dict[str, Any]]:
+    return load_data().get("pumps", [])
+
+
+def get_pump(pump_id: str) -> Dict[str, Any] | None:
+    return next((p for p in get_pumps() if p.get("id") == pump_id), None)
+
+
+def get_water_sensors() -> List[Dict[str, Any]]:
+    return load_data().get("water_sensors", [])
+
+
+def get_water_sensor(sensor_id: str) -> Dict[str, Any] | None:
+    return next((s for s in get_water_sensors() if s.get("id") == sensor_id), None)
+
+
+def get_water_presets() -> List[Dict[str, Any]]:
+    return load_data().get("water_presets", [])
+
+
+def get_water_preset(preset_id: str) -> Dict[str, Any] | None:
+    return next((p for p in get_water_presets() if p.get("id") == preset_id), None)
+
+
 def get_app_settings() -> Dict[str, Any]:
     data = load_data()
     raw = data.get("app_settings", {})
@@ -666,6 +873,10 @@ def get_app_settings() -> Dict[str, Any]:
         "exhaust_debug_card_enabled": True,
         "light_debug_card_enabled": True,
         "pump_topic": PUMP_TOPIC,
+        "pump_name": "",
+        "pump2_enabled": False,
+        "pump2_topic": PUMP2_TOPIC,
+        "pump2_name": "",
         "heater_topic": HEATER_TOPIC,
         "exhaust_topic": DEFAULT_EXHAUST_SETTINGS["plug_topic"],
         "light_topic": LIGHT_TOPIC,
@@ -723,20 +934,23 @@ def get_app_settings() -> Dict[str, Any]:
     settings["heater_debug_card_enabled"] = bool(settings.get("heater_debug_card_enabled", True))
     settings["exhaust_debug_card_enabled"] = bool(settings.get("exhaust_debug_card_enabled", True))
     settings["light_debug_card_enabled"] = bool(settings.get("light_debug_card_enabled", True))
-    settings["pump_topic"] = str(settings.get("pump_topic") or PUMP_TOPIC).strip() or PUMP_TOPIC
-    settings["heater_topic"] = str(settings.get("heater_topic") or HEATER_TOPIC).strip() or HEATER_TOPIC
+    settings["pump_topic"] = _extract_device_name(settings.get("pump_topic") or PUMP_TOPIC) or _extract_device_name(PUMP_TOPIC)
+    settings["pump_name"] = str(settings.get("pump_name") or "").strip()[:40]
+    settings["pump2_enabled"] = bool(settings.get("pump2_enabled", False))
+    settings["pump2_topic"] = _extract_device_name(settings.get("pump2_topic") or PUMP2_TOPIC)
+    settings["pump2_name"] = str(settings.get("pump2_name") or "").strip()[:40]
+    settings["heater_topic"] = _extract_device_name(settings.get("heater_topic") or HEATER_TOPIC) or _extract_device_name(HEATER_TOPIC)
     legacy_exhaust_topic = None
     if isinstance(raw, dict):
         legacy_exhaust_topic = raw.get("exhaust_topic")
     exhaust_defaults = data.get("exhaust_settings", {}) if isinstance(data.get("exhaust_settings"), dict) else {}
-    settings["exhaust_topic"] = (
-        str(settings.get("exhaust_topic") or legacy_exhaust_topic or exhaust_defaults.get("plug_topic") or DEFAULT_EXHAUST_SETTINGS["plug_topic"]).strip()
-        or DEFAULT_EXHAUST_SETTINGS["plug_topic"]
-    )
-    settings["light_topic"] = str(settings.get("light_topic") or LIGHT_TOPIC).strip() or LIGHT_TOPIC
-    settings["dehumidifier_topic"] = str(settings.get("dehumidifier_topic") or DEHUMIDIFIER_TOPIC).strip() or DEHUMIDIFIER_TOPIC
-    settings["humidifier_topic"] = str(settings.get("humidifier_topic") or HUMIDIFIER_TOPIC).strip() or HUMIDIFIER_TOPIC
-    settings["water_sensor_topic"] = str(settings.get("water_sensor_topic") or WATER_SENSOR_TOPIC).strip() or WATER_SENSOR_TOPIC
+    settings["exhaust_topic"] = _extract_device_name(
+        settings.get("exhaust_topic") or legacy_exhaust_topic or exhaust_defaults.get("plug_topic") or DEFAULT_EXHAUST_SETTINGS["plug_topic"]
+    ) or _extract_device_name(DEFAULT_EXHAUST_SETTINGS["plug_topic"])
+    settings["light_topic"] = _extract_device_name(settings.get("light_topic") or LIGHT_TOPIC) or _extract_device_name(LIGHT_TOPIC)
+    settings["dehumidifier_topic"] = _extract_device_name(settings.get("dehumidifier_topic") or DEHUMIDIFIER_TOPIC) or _extract_device_name(DEHUMIDIFIER_TOPIC)
+    settings["humidifier_topic"] = _extract_device_name(settings.get("humidifier_topic") or HUMIDIFIER_TOPIC) or _extract_device_name(HUMIDIFIER_TOPIC)
+    settings["water_sensor_topic"] = _extract_device_name(settings.get("water_sensor_topic") or WATER_SENSOR_TOPIC) or _extract_device_name(WATER_SENSOR_TOPIC)
     settings["switchbot_mac"] = str(settings.get("switchbot_mac") or SWITCHBOT_MAC).strip().upper() or SWITCHBOT_MAC
     try:
         settings["switchbot_scan_timeout"] = int(settings.get("switchbot_scan_timeout", SWITCHBOT_SCAN_TIMEOUT))
@@ -790,13 +1004,17 @@ def save_app_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
     settings["heater_debug_card_enabled"] = bool(payload.get("heater_debug_card_enabled", settings["heater_debug_card_enabled"]))
     settings["exhaust_debug_card_enabled"] = bool(payload.get("exhaust_debug_card_enabled", settings["exhaust_debug_card_enabled"]))
     settings["light_debug_card_enabled"] = bool(payload.get("light_debug_card_enabled", settings["light_debug_card_enabled"]))
-    settings["pump_topic"] = str(payload.get("pump_topic", settings["pump_topic"]) or "").strip()
-    settings["heater_topic"] = str(payload.get("heater_topic", settings["heater_topic"]) or "").strip()
-    settings["exhaust_topic"] = str(payload.get("exhaust_topic", settings["exhaust_topic"]) or "").strip()
-    settings["light_topic"] = str(payload.get("light_topic", settings["light_topic"]) or "").strip()
-    settings["dehumidifier_topic"] = str(payload.get("dehumidifier_topic", settings["dehumidifier_topic"]) or "").strip()
-    settings["humidifier_topic"] = str(payload.get("humidifier_topic", settings["humidifier_topic"]) or "").strip()
-    settings["water_sensor_topic"] = str(payload.get("water_sensor_topic", settings["water_sensor_topic"]) or "").strip()
+    settings["pump_topic"] = _extract_device_name(payload.get("pump_topic", settings["pump_topic"]))
+    settings["pump_name"] = str(payload.get("pump_name", settings["pump_name"]) or "").strip()[:40]
+    settings["pump2_enabled"] = bool(payload.get("pump2_enabled", settings["pump2_enabled"]))
+    settings["pump2_topic"] = _extract_device_name(payload.get("pump2_topic", settings["pump2_topic"]))
+    settings["pump2_name"] = str(payload.get("pump2_name", settings["pump2_name"]) or "").strip()[:40]
+    settings["heater_topic"] = _extract_device_name(payload.get("heater_topic", settings["heater_topic"]))
+    settings["exhaust_topic"] = _extract_device_name(payload.get("exhaust_topic", settings["exhaust_topic"]))
+    settings["light_topic"] = _extract_device_name(payload.get("light_topic", settings["light_topic"]))
+    settings["dehumidifier_topic"] = _extract_device_name(payload.get("dehumidifier_topic", settings["dehumidifier_topic"]))
+    settings["humidifier_topic"] = _extract_device_name(payload.get("humidifier_topic", settings["humidifier_topic"]))
+    settings["water_sensor_topic"] = _extract_device_name(payload.get("water_sensor_topic", settings["water_sensor_topic"]))
     settings["switchbot_mac"] = str(payload.get("switchbot_mac", settings["switchbot_mac"]) or "").strip().upper()
     settings["camera_auto_focus"] = bool(payload.get("camera_auto_focus", settings["camera_auto_focus"]))
     settings["camera_auto_exposure"] = bool(payload.get("camera_auto_exposure", settings["camera_auto_exposure"]))
@@ -848,6 +1066,8 @@ def save_app_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
         return {"error": "Reservoir-Sensor-Topic darf nicht leer sein."}
     if settings["pump_enabled"] and not settings["pump_topic"]:
         return {"error": "Pumpen-Topic darf nicht leer sein."}
+    if settings["pump2_enabled"] and not settings["pump2_topic"]:
+        return {"error": "Pumpe-2-Topic darf nicht leer sein."}
     if settings["heater_enabled"] and not settings["heater_topic"]:
         return {"error": "Heizungs-Topic darf nicht leer sein."}
     if settings["exhaust_enabled"] and not settings["exhaust_topic"]:
@@ -1070,6 +1290,18 @@ def get_fertilizer_catalog(data: Dict[str, Any]) -> List[Dict[str, Any]]:
         )
     return sorted(catalog, key=lambda item: item["name"].lower())
 
+def static_url(filename: str) -> str:
+    """Append the file's mtime as a cache-busting query param, so a deploy's
+    changes take effect immediately instead of waiting out the browser's
+    SEND_FILE_MAX_AGE_DEFAULT cache."""
+    path = os.path.join(app.static_folder, filename)
+    try:
+        version = int(os.path.getmtime(path))
+    except OSError:
+        version = 0
+    return f"{url_for('static', filename=filename)}?v={version}"
+
+
 @app.context_processor
 def inject_template_helpers() -> Dict[str, Any]:
     ui_settings = get_app_settings()
@@ -1083,6 +1315,7 @@ def inject_template_helpers() -> Dict[str, Any]:
     return {
         "ui_settings": ui_settings,
         "logo_url": _logo_url,
+        "static_url": static_url,
         "nav_items": get_navigation_items(ui_settings),
         "menu_editor_items": get_menu_editor_items(ui_settings),
         "tr": lambda key: tr(key, ui_settings["language"]),
@@ -1136,6 +1369,8 @@ def get_mqtt_settings() -> Dict[str, Any]:
         "dehumidifier_enabled": settings["dehumidifier_enabled"],
         "humidifier_enabled": settings["humidifier_enabled"],
         "pump_topic": settings["pump_topic"],
+        "pump2_enabled": settings["pump2_enabled"],
+        "pump2_topic": settings["pump2_topic"],
         "heater_topic": settings["heater_topic"],
         "exhaust_topic": settings["exhaust_topic"],
         "light_topic": settings["light_topic"],
@@ -1145,8 +1380,9 @@ def get_mqtt_settings() -> Dict[str, Any]:
     }
 
 
-def is_pump_enabled() -> bool:
-    return bool(get_app_settings().get("pump_enabled", True))
+def is_pump_enabled(pump_id: str = "1") -> bool:
+    pump = get_pump(pump_id)
+    return bool(pump.get("enabled", False)) if pump else False
 
 
 def is_heater_enabled() -> bool:
@@ -1157,8 +1393,9 @@ def is_exhaust_enabled() -> bool:
     return bool(get_app_settings().get("exhaust_enabled", True))
 
 
-def is_water_sensor_enabled() -> bool:
-    return bool(get_app_settings().get("water_sensor_enabled", True))
+def is_water_sensor_enabled(sensor_id: str = "1") -> bool:
+    sensor = get_water_sensor(sensor_id)
+    return bool(sensor.get("enabled", False)) if sensor else False
 
 
 def is_light_enabled() -> bool:
@@ -1173,28 +1410,36 @@ def is_humidifier_enabled() -> bool:
     return bool(get_app_settings().get("humidifier_enabled", True))
 
 
-def get_pump_topic() -> str:
-    return get_mqtt_settings()["pump_topic"]
+def get_pump_topic(pump_id: str = "1") -> str:
+    pump = get_pump(pump_id)
+    return _actuator_topic(pump.get("topic", "")) if pump else ""
+
+
+def get_pump_name(pump_id: str = "1") -> str:
+    pump = get_pump(pump_id)
+    default = tr("pump_default_label").format(n=pump_id)
+    return (pump.get("name") or default) if pump else default
 
 
 def get_heater_topic() -> str:
-    return get_mqtt_settings()["heater_topic"]
+    return _actuator_topic(get_mqtt_settings()["heater_topic"])
 
 
-def get_water_sensor_topic() -> str:
-    return get_mqtt_settings()["water_sensor_topic"]
+def get_water_sensor_topic(sensor_id: str = "1") -> str:
+    sensor = get_water_sensor(sensor_id)
+    return _sensor_topic(sensor.get("topic", "")) if sensor else ""
 
 
 def get_light_topic() -> str:
-    return get_mqtt_settings()["light_topic"]
+    return _actuator_topic(get_mqtt_settings()["light_topic"])
 
 
 def get_dehumidifier_topic() -> str:
-    return get_mqtt_settings()["dehumidifier_topic"]
+    return _actuator_topic(get_mqtt_settings()["dehumidifier_topic"])
 
 
 def get_humidifier_topic() -> str:
-    return get_mqtt_settings()["humidifier_topic"]
+    return _actuator_topic(get_mqtt_settings()["humidifier_topic"])
 
 
 def get_exhaust_settings() -> Dict[str, Any]:
@@ -1205,7 +1450,7 @@ def get_exhaust_settings() -> Dict[str, Any]:
         settings.update(raw)
     settings["enabled"] = bool(settings.get("enabled")) and is_exhaust_enabled()
     settings["debug_notify"] = bool(settings.get("debug_notify"))
-    settings["plug_topic"] = get_mqtt_settings()["exhaust_topic"]
+    settings["plug_topic"] = get_exhaust_topic()
     settings["rh_turn_on_above"] = float(settings.get("rh_turn_on_above", DEFAULT_EXHAUST_SETTINGS["rh_turn_on_above"]))
     settings["rh_turn_off_below"] = float(settings.get("rh_turn_off_below", DEFAULT_EXHAUST_SETTINGS["rh_turn_off_below"]))
     settings["temp_force_on_above"] = float(settings.get("temp_force_on_above", DEFAULT_EXHAUST_SETTINGS["temp_force_on_above"]))
@@ -1227,7 +1472,7 @@ def save_exhaust_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         updates["enabled"] = bool(payload.get("enabled", False))
         updates["debug_notify"] = bool(payload.get("debug_notify", False))
-        updates["plug_topic"] = get_mqtt_settings()["exhaust_topic"]
+        updates["plug_topic"] = get_exhaust_topic()
         updates["rh_turn_on_above"] = float(payload.get("rh_turn_on_above", current["rh_turn_on_above"]))
         updates["rh_turn_off_below"] = float(payload.get("rh_turn_off_below", current["rh_turn_off_below"]))
         updates["temp_force_on_above"] = float(payload.get("temp_force_on_above", current["temp_force_on_above"]))
@@ -1268,7 +1513,7 @@ def save_exhaust_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
 
 
 def get_exhaust_topic() -> str:
-    return get_mqtt_settings()["exhaust_topic"]
+    return _actuator_topic(get_mqtt_settings()["exhaust_topic"])
 
 
 def get_light_cycle_settings() -> Dict[str, Any]:
@@ -1400,6 +1645,7 @@ def get_humidity_settings() -> Dict[str, Any]:
     else:
         settings["enabled"] = settings["enabled"] and has_exhaust
     settings["debug_notify"] = bool(settings.get("debug_notify"))
+    settings["vpd_autopilot_enabled"] = bool(settings.get("vpd_autopilot_enabled"))
     settings["rh_upper_threshold"] = float(settings.get("rh_upper_threshold", DEFAULT_HUMIDITY_SETTINGS["rh_upper_threshold"]))
     settings["rh_lower_threshold"] = float(settings.get("rh_lower_threshold", DEFAULT_HUMIDITY_SETTINGS["rh_lower_threshold"]))
     settings["cycle_on_seconds"] = max(60, int(float(settings.get("cycle_on_seconds", DEFAULT_HUMIDITY_SETTINGS["cycle_on_seconds"]))))
@@ -1420,6 +1666,7 @@ def save_humidity_settings(payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         updates["enabled"] = bool(payload.get("enabled", False))
         updates["debug_notify"] = bool(payload.get("debug_notify", False))
+        updates["vpd_autopilot_enabled"] = bool(payload.get("vpd_autopilot_enabled", current["vpd_autopilot_enabled"]))
         updates["control_method"] = str(payload.get("control_method", current["control_method"]) or "").strip()
         updates["exhaust_control_mode"] = str(payload.get("exhaust_control_mode", current["exhaust_control_mode"]) or "").strip()
         updates["rh_upper_threshold"] = float(payload.get("rh_upper_threshold", current["rh_upper_threshold"]))
@@ -1530,6 +1777,38 @@ def send_telegram_notification(text: str) -> None:
     t = threading.Thread(
         target=_send_telegram_worker,
         args=(bot_token, chat_id, text),
+        daemon=True,
+    )
+    t.start()
+
+
+def _send_telegram_photo_worker(bot_token: str, chat_id: str, image_path: str, caption: str) -> None:
+    try:
+        url = f"https://api.telegram.org/bot{bot_token}/sendPhoto"
+        with open(image_path, "rb") as f:
+            response = requests.post(
+                url,
+                data={"chat_id": chat_id, "caption": caption},
+                files={"photo": f},
+                timeout=20,
+            )
+        if not response.ok:
+            print(f"[telegram] Foto-Fehler: {response.status_code} {response.text[:200]}", flush=True)
+    except Exception as exc:
+        print(f"[telegram] Foto-Sendefehler: {exc}", flush=True)
+
+
+def send_telegram_photo(image_path: str, caption: str = "") -> None:
+    settings = get_app_settings()
+    if not settings.get("telegram_enabled", True):
+        return
+    bot_token = settings.get("telegram_bot_token") or TELEGRAM_BOT_TOKEN
+    chat_id = settings.get("telegram_chat_id") or TELEGRAM_CHAT_ID
+    if not bot_token or not chat_id or not image_path or not os.path.exists(image_path):
+        return
+    t = threading.Thread(
+        target=_send_telegram_photo_worker,
+        args=(bot_token, chat_id, image_path, caption),
         daemon=True,
     )
     t.start()
@@ -1713,13 +1992,33 @@ def get_image_stats() -> Dict[str, Any]:
     return result
 
 
+def _tail_lines(path: str, n: int) -> List[str]:
+    """Return the last n lines of a text file without reading the whole file."""
+    chunk_size = 4096
+    with open(path, "rb") as f:
+        f.seek(0, os.SEEK_END)
+        file_size = f.tell()
+        blocks: List[bytes] = []
+        remaining = file_size
+        newline_count = 0
+        while remaining > 0 and newline_count <= n:
+            read_size = min(chunk_size, remaining)
+            remaining -= read_size
+            f.seek(remaining)
+            block = f.read(read_size)
+            newline_count += block.count(b"\n")
+            blocks.append(block)
+        data = b"".join(reversed(blocks))
+    text = data.decode("utf-8", errors="replace")
+    return text.splitlines()[-n:]
+
+
 def read_bot_log(limit: int = 30) -> List[Dict[str, str]]:
     if not os.path.exists(BOT_LOG_FILE):
         return []
     entries = []
     try:
-        with open(BOT_LOG_FILE, "r", encoding="utf-8") as f:
-            lines = f.readlines()[-limit:]
+        lines = _tail_lines(BOT_LOG_FILE, limit)
         for line in lines:
             parts = line.strip().split("||", 2)
             if len(parts) == 3:
@@ -1981,7 +2280,7 @@ def get_live_sensor_reading() -> Dict[str, Any] | None:
         cached = LIVE_SENSOR_CACHE.get("reading")
         fetched_at = LIVE_SENSOR_CACHE.get("fetched_at")
         if cached and isinstance(fetched_at, datetime):
-            if (datetime.now() - fetched_at).total_seconds() <= 10:
+            if (datetime.now() - fetched_at).total_seconds() <= 30:
                 return dict(cached)
     python_executable = VENV_PYTHON if os.path.exists(VENV_PYTHON) else "python3"
     cmd = [python_executable, CAM_SCRIPT, "--sensors-only"]
@@ -2445,7 +2744,27 @@ def action_logs() -> Dict[str, Any]:
         return {"message": f"❌ Fehler beim Lesen der Logs: {exc}"}
 
 
-def action_water(date_str: str | None, clear: bool | None = False) -> Dict[str, Any]:
+def _append_watering_log(
+    data: Dict[str, Any],
+    *,
+    pump_id: str | None = None,
+    duration_seconds: float | None = None,
+    source: str,
+) -> None:
+    log = data.setdefault("watering_log", [])
+    log.append(
+        {
+            "date": datetime.now().strftime("%Y-%m-%d"),
+            "timestamp": datetime.now().isoformat(),
+            "pump_id": pump_id,
+            "duration_seconds": duration_seconds,
+            "source": source,
+        }
+    )
+    del log[:-200]
+
+
+def action_water(date_str: str | None, clear: bool | None = False, source: str = "manual") -> Dict[str, Any]:
     data = load_data()
     if clear:
         data["last_watering"] = ""
@@ -2459,6 +2778,7 @@ def action_water(date_str: str | None, clear: bool | None = False) -> Dict[str, 
     else:
         parsed = datetime.now()
     data["last_watering"] = parsed.strftime("%Y-%m-%d")
+    _append_watering_log(data, source=source)
     save_data(data)
     return {"message": f"🚿 Bewässerung gespeichert: {parsed.strftime('%d.%m.%Y')}"}
 
@@ -2522,35 +2842,335 @@ def action_fertilizer_delete(name: str | None) -> Dict[str, Any]:
     return {"message": tr("fertilizer_deleted"), "fertilizers": get_fertilizer_catalog(data)}
 
 
-def publish_pump_state(state: str) -> None:
-    publish_device_state(get_pump_topic(), state)
+def action_pump_save(payload: Dict[str, Any]) -> Dict[str, Any]:
+    data = load_data()
+    pumps = data.setdefault("pumps", [])
+    original_id = str(payload.get("original_id") or "").strip()
+    name = str(payload.get("name") or "").strip()[:40]
+    topic = _extract_device_name(payload.get("topic") or "")
+    enabled = bool(payload.get("enabled", True))
+    tent_id = str(payload.get("tent_id") or "").strip() or None
+    if tent_id and not any(t["id"] == tent_id for t in data.get("tents", [])):
+        return {"error": "Unbekanntes Zelt."}
+    sensor_id = str(payload.get("sensor_id") or "").strip() or None
+    if sensor_id and not any(s["id"] == sensor_id for s in data.get("water_sensors", [])):
+        return {"error": "Unbekannter Sensor."}
+    auto_water_enabled = bool(payload.get("auto_water_enabled", False))
+    if auto_water_enabled and not sensor_id:
+        return {"error": "Auto-Bewässerung benötigt einen zugewiesenen Sensor."}
+    dosing_mode = payload.get("dosing_mode") if payload.get("dosing_mode") in {"minutes", "liters"} else "minutes"
+    try:
+        dosing_minutes = float(payload.get("dosing_minutes", 2.0))
+        dosing_liters = float(payload.get("dosing_liters", 1.0))
+        flow_rate_value = float(payload.get("flow_rate_value", 0.0))
+        cooldown = max(1, int(payload.get("auto_water_cooldown_minutes", 360)))
+    except (TypeError, ValueError):
+        return {"error": "Ungültiger Zahlenwert."}
+    flow_rate_unit = payload.get("flow_rate_unit") if payload.get("flow_rate_unit") in {"l_min", "ml_min"} else "l_min"
+    active_preset_id = str(payload.get("active_preset_id") or "").strip() or None
+    presets = data.get("water_presets", [])
+    if active_preset_id and not any(p["id"] == active_preset_id for p in presets):
+        return {"error": "Unbekanntes Preset."}
+    if not name:
+        return {"error": "Name fehlt."}
+    if enabled and not topic:
+        return {"error": "Pumpen-Topic darf nicht leer sein."}
+    active_preset = next((p for p in presets if p["id"] == active_preset_id), None) if active_preset_id else None
+    uses_liters = dosing_mode == "liters" or (active_preset is not None and active_preset.get("mode") == "liters")
+    if uses_liters and flow_rate_value <= 0:
+        return {"error": "Kalibrierte Flussrate erforderlich für Liter-Modus."}
+
+    if original_id:
+        existing = next((p for p in pumps if p["id"] == original_id), None)
+        if existing is None:
+            return {"error": "Pumpe nicht gefunden."}
+        existing.update({
+            "name": name, "enabled": enabled, "topic": topic, "tent_id": tent_id, "sensor_id": sensor_id,
+            "auto_water_enabled": auto_water_enabled, "auto_water_cooldown_minutes": cooldown,
+            "dosing_mode": dosing_mode, "dosing_minutes": dosing_minutes, "dosing_liters": dosing_liters,
+            "flow_rate_value": flow_rate_value, "flow_rate_unit": flow_rate_unit, "active_preset_id": active_preset_id,
+        })
+    else:
+        new_id = _next_id(pumps)
+        pumps.append({
+            "id": new_id, "name": name, "enabled": enabled, "topic": topic, "tent_id": tent_id, "sensor_id": sensor_id,
+            "auto_water_enabled": auto_water_enabled, "auto_water_cooldown_minutes": cooldown,
+            "dosing_mode": dosing_mode, "dosing_minutes": dosing_minutes, "dosing_liters": dosing_liters,
+            "flow_rate_value": flow_rate_value, "flow_rate_unit": flow_rate_unit, "active_preset_id": active_preset_id,
+            "last_auto_water_at": None,
+        })
+        _get_pump_monitor(new_id)
+    data["pumps"] = pumps
+    save_data(data)
+    return {"message": tr("pump_saved"), "pumps": get_pumps()}
 
 
-def _clear_pump_timer() -> None:
-    global PUMP_TIMER_DEADLINE, PUMP_TIMER_THREAD
-    with PUMP_TIMER_LOCK:
-        if PUMP_TIMER_THREAD:
+def action_pump_delete(pump_id: str | None) -> Dict[str, Any]:
+    target = str(pump_id or "").strip()
+    if not target:
+        return {"error": "ID fehlt."}
+    data = load_data()
+    pumps = data.setdefault("pumps", [])
+    if not any(p["id"] == target for p in pumps):
+        return {"error": "Pumpe nicht gefunden."}
+    action_pump(target, "off")
+    data["pumps"] = [p for p in pumps if p["id"] != target]
+    save_data(data)
+    PUMP_RUNTIME.pop(target, None)
+    PUMP_MONITORS.pop(target, None)
+    return {"message": tr("pump_deleted"), "pumps": get_pumps()}
+
+
+def action_water_sensor_save(payload: Dict[str, Any]) -> Dict[str, Any]:
+    data = load_data()
+    sensors = data.setdefault("water_sensors", [])
+    original_id = str(payload.get("original_id") or "").strip()
+    name = str(payload.get("name") or "").strip()[:40]
+    topic = _extract_device_name(payload.get("topic") or "")
+    enabled = bool(payload.get("enabled", True))
+    tent_id = str(payload.get("tent_id") or "").strip() or None
+    if tent_id and not any(t["id"] == tent_id for t in data.get("tents", [])):
+        return {"error": "Unbekanntes Zelt."}
+    alerting_enabled = bool(payload.get("alerting_enabled", True))
+    if not name:
+        return {"error": "Name fehlt."}
+    if enabled and not topic:
+        return {"error": "Sensor-Topic darf nicht leer sein."}
+
+    if original_id:
+        existing = next((s for s in sensors if s["id"] == original_id), None)
+        if existing is None:
+            return {"error": "Sensor nicht gefunden."}
+        existing.update({
+            "name": name, "enabled": enabled, "topic": topic, "tent_id": tent_id, "alerting_enabled": alerting_enabled,
+        })
+    else:
+        sensors.append({
+            "id": _next_id(sensors), "name": name, "enabled": enabled, "topic": topic, "tent_id": tent_id,
+            "alerting_enabled": alerting_enabled, "state": None, "dry_since": None, "wet_since": None,
+            "first_alert_sent": False, "repeat_alert_sent": False,
+        })
+    data["water_sensors"] = sensors
+    save_data(data)
+    return {"message": tr("water_sensor_saved"), "water_sensors": get_water_sensors()}
+
+
+def action_water_sensor_delete(sensor_id: str | None) -> Dict[str, Any]:
+    target = str(sensor_id or "").strip()
+    if not target:
+        return {"error": "ID fehlt."}
+    data = load_data()
+    sensors = data.setdefault("water_sensors", [])
+    if not any(s["id"] == target for s in sensors):
+        return {"error": "Sensor nicht gefunden."}
+    data["water_sensors"] = [s for s in sensors if s["id"] != target]
+    for pump in data.get("pumps", []):
+        if pump.get("sensor_id") == target:
+            pump["sensor_id"] = None
+            pump["auto_water_enabled"] = False
+    save_data(data)
+    return {"message": tr("water_sensor_deleted"), "water_sensors": get_water_sensors(), "pumps": get_pumps()}
+
+
+def action_tent_save(payload: Dict[str, Any]) -> Dict[str, Any]:
+    data = load_data()
+    tents = data.setdefault("tents", [])
+    original_id = str(payload.get("original_id") or "").strip()
+    name = str(payload.get("name") or "").strip()[:40]
+    notes = str(payload.get("notes") or "").strip()[:200]
+    if not name:
+        return {"error": "Name fehlt."}
+    if original_id:
+        existing = next((t for t in tents if t["id"] == original_id), None)
+        if existing is None:
+            return {"error": "Zelt nicht gefunden."}
+        existing.update({"name": name, "notes": notes})
+    else:
+        tents.append({"id": _next_id(tents), "name": name, "notes": notes})
+    data["tents"] = tents
+    save_data(data)
+    return {"message": tr("tent_saved"), "tents": get_tents()}
+
+
+def action_tent_delete(tent_id: str | None) -> Dict[str, Any]:
+    target = str(tent_id or "").strip()
+    if not target:
+        return {"error": "ID fehlt."}
+    data = load_data()
+    tents = data.setdefault("tents", [])
+    if not any(t["id"] == target for t in tents):
+        return {"error": "Zelt nicht gefunden."}
+    data["tents"] = [t for t in tents if t["id"] != target]
+    for pump in data.get("pumps", []):
+        if pump.get("tent_id") == target:
+            pump["tent_id"] = None
+    for sensor in data.get("water_sensors", []):
+        if sensor.get("tent_id") == target:
+            sensor["tent_id"] = None
+    save_data(data)
+    return {"message": tr("tent_deleted"), "tents": get_tents(), "pumps": get_pumps(), "water_sensors": get_water_sensors()}
+
+
+def action_water_preset_save(payload: Dict[str, Any]) -> Dict[str, Any]:
+    data = load_data()
+    presets = data.setdefault("water_presets", [])
+    original_id = str(payload.get("original_id") or "").strip()
+    name = str(payload.get("name") or "").strip()[:40]
+    mode = payload.get("mode") if payload.get("mode") in {"minutes", "liters"} else "minutes"
+    try:
+        value = float(payload.get("value", 0))
+    except (TypeError, ValueError):
+        return {"error": "Ungültiger Wert."}
+    if not name:
+        return {"error": "Name fehlt."}
+    if value <= 0:
+        return {"error": "Wert muss größer als 0 sein."}
+    if original_id:
+        existing = next((p for p in presets if p["id"] == original_id), None)
+        if existing is None:
+            return {"error": "Preset nicht gefunden."}
+        existing.update({"name": name, "mode": mode, "value": value})
+    else:
+        presets.append({"id": _next_id(presets), "name": name, "mode": mode, "value": value})
+    data["water_presets"] = presets
+    save_data(data)
+    return {"message": tr("preset_saved"), "water_presets": get_water_presets()}
+
+
+def action_water_preset_delete(preset_id: str | None) -> Dict[str, Any]:
+    target = str(preset_id or "").strip()
+    if not target:
+        return {"error": "ID fehlt."}
+    data = load_data()
+    presets = data.setdefault("water_presets", [])
+    if not any(p["id"] == target for p in presets):
+        return {"error": "Preset nicht gefunden."}
+    data["water_presets"] = [p for p in presets if p["id"] != target]
+    for pump in data.get("pumps", []):
+        if pump.get("active_preset_id") == target:
+            pump["active_preset_id"] = None
+    save_data(data)
+    return {"message": tr("preset_deleted"), "water_presets": get_water_presets(), "pumps": get_pumps()}
+
+
+def publish_pump_state(pump_id: str, state: str) -> None:
+    publish_device_state(get_pump_topic(pump_id), state)
+
+
+def _get_pump_runtime(pump_id: str) -> Dict[str, Any]:
+    return PUMP_RUNTIME.setdefault(
+        pump_id,
+        {"lock": threading.Lock(), "timer_thread": None, "timer_deadline": None, "started_at": None, "origin": None},
+    )
+
+
+def _clear_pump_timer(pump_id: str) -> None:
+    runtime = _get_pump_runtime(pump_id)
+    with runtime["lock"]:
+        if runtime["timer_thread"]:
             try:
-                PUMP_TIMER_THREAD.cancel()
+                runtime["timer_thread"].cancel()
             except Exception:
                 pass
-        PUMP_TIMER_THREAD = None
-        PUMP_TIMER_DEADLINE = None
+        runtime["timer_thread"] = None
+        runtime["timer_deadline"] = None
 
 
-def _scheduled_pump_off() -> None:
-    global PUMP_TIMER_DEADLINE, PUMP_TIMER_THREAD
+def _format_duration(seconds: float) -> str:
+    total = max(0, int(round(seconds)))
+    minutes, secs = divmod(total, 60)
+    return f"{minutes}m {secs}s" if minutes else f"{secs}s"
+
+
+def _preset_to_minutes(preset: Dict[str, Any], pump: Dict[str, Any]) -> float | None:
+    if preset.get("mode") == "minutes":
+        return float(preset.get("value") or 0)
+    flow = float(pump.get("flow_rate_value") or 0)
+    if flow <= 0:
+        return None
+    flow_l_per_min = flow if pump.get("flow_rate_unit") == "l_min" else flow / 1000.0
+    if flow_l_per_min <= 0:
+        return None
+    return float(preset.get("value") or 0) / flow_l_per_min
+
+
+def _pump_dosing_minutes(pump: Dict[str, Any]) -> float | None:
+    if pump.get("dosing_mode") == "liters":
+        flow = float(pump.get("flow_rate_value") or 0)
+        if flow <= 0:
+            return None
+        flow_l_per_min = flow if pump.get("flow_rate_unit") == "l_min" else flow / 1000.0
+        if flow_l_per_min <= 0:
+            return None
+        return float(pump.get("dosing_liters") or 0) / flow_l_per_min
+    return float(pump.get("dosing_minutes") or 0)
+
+
+def action_pump_run_preset(pump_id: str, preset_id: str) -> Dict[str, Any]:
+    pump = get_pump(pump_id)
+    if not pump:
+        return {"message": "❌ Unbekannte Pumpe."}
+    preset = get_water_preset(preset_id)
+    if not preset:
+        return {"message": "❌ Unbekanntes Preset."}
+    minutes = _preset_to_minutes(preset, pump)
+    if minutes is None or minutes <= 0:
+        return {"message": "❌ Kalibrierte Flussrate fehlt für Liter-Preset."}
+    return action_pump(pump_id, "timer", minutes=minutes)
+
+
+def _maybe_auto_stamp_watering_date(data: Dict[str, Any], pump_id: str, pump_name: str) -> None:
+    """Feature (b): stamp today's watering date if the pump's attached sensor reads
+    'filled' at stop time. Mutates `data` in place — caller is responsible for save_data()."""
+    pump = get_pump(pump_id)
+    sensor_id = pump.get("sensor_id") if pump else None
+    if not sensor_id or not is_water_sensor_enabled(sensor_id):
+        return
+    if action_water_sensor_state(sensor_id).get("water_sensor_state") != "ON":
+        return
+    data["last_watering"] = datetime.now().strftime("%Y-%m-%d")
+    send_telegram_notification(f"💧 Bewässerungsdatum automatisch gesetzt ({pump_name}, Reservoir voll).")
+
+
+def _handle_pump_stopped(pump_id: str, stop_source: str) -> None:
+    """Shared by the manual-off path and the timer callback so elapsed-time math,
+    the watering log, and the auto-watering-date rule exist exactly once."""
+    runtime = _get_pump_runtime(pump_id)
+    with runtime["lock"]:
+        started_at = runtime.get("started_at")
+        origin = runtime.get("origin") or "manual"
+        runtime["started_at"] = None
+        runtime["origin"] = None
+    name = get_pump_name(pump_id)
+    reason = "Timer abgelaufen" if stop_source == "timer" else "manuell"
+    if started_at is None:
+        send_telegram_notification(f"🛑 {name} ausgeschaltet ({reason}).")
+        return
+    elapsed = (datetime.now() - started_at).total_seconds()
+    send_telegram_notification(f"🛑 {name} ausgeschaltet ({reason}) – Laufzeit: {_format_duration(elapsed)}.")
+    data = load_data()
+    log_source = "auto_moisture" if origin == "auto_moisture" else "auto"
+    _append_watering_log(data, pump_id=pump_id, duration_seconds=elapsed, source=log_source)
+    if elapsed >= PUMP_AUTO_WATER_MIN_SECONDS:
+        _maybe_auto_stamp_watering_date(data, pump_id, name)
+    save_data(data)
+
+
+def _scheduled_pump_off(pump_id: str) -> None:
+    runtime = _get_pump_runtime(pump_id)
     try:
-        publish_pump_state("OFF")
+        publish_pump_state(pump_id, "OFF")
+        _handle_pump_stopped(pump_id, stop_source="timer")
     finally:
-        with PUMP_TIMER_LOCK:
-            PUMP_TIMER_THREAD = None
-            PUMP_TIMER_DEADLINE = None
+        with runtime["lock"]:
+            runtime["timer_thread"] = None
+            runtime["timer_deadline"] = None
 
 
-def _pump_timer_snapshot() -> Dict[str, Any]:
-    with PUMP_TIMER_LOCK:
-        deadline = PUMP_TIMER_DEADLINE
+def _pump_timer_snapshot(pump_id: str) -> Dict[str, Any]:
+    runtime = _get_pump_runtime(pump_id)
+    with runtime["lock"]:
+        deadline = runtime["timer_deadline"]
     if not deadline:
         return {"remaining_seconds": None, "until": None}
     remaining = max(0, int((deadline - datetime.now()).total_seconds()))
@@ -2563,6 +3183,10 @@ def publish_device_state(topic: str, state: str) -> None:
     if not mqtt:
         raise RuntimeError("paho-mqtt ist nicht installiert.")
     payload = json.dumps({"state": state.upper()})
+    if mqtt_publisher and mqtt_publisher.publish(topic, payload, qos=1, retain=False):
+        return
+    # Fallback: persistent publisher not yet connected (e.g. right at startup) —
+    # one-shot connect, matching CLAUDE.md's "automation must degrade gracefully" rule.
     client = mqtt_client()
     mqtt_settings = get_mqtt_settings()
     client.connect(mqtt_settings["host"], mqtt_settings["port"], 60)
@@ -2570,23 +3194,32 @@ def publish_device_state(topic: str, state: str) -> None:
     client.disconnect()
 
 
-def action_pump(command: str | None, minutes: Any = None) -> Dict[str, Any]:
-    if not is_pump_enabled():
+def action_pump(pump_id: str, command: str | None, minutes: Any = None, origin: str = "manual") -> Dict[str, Any]:
+    if get_pump(pump_id) is None:
+        return {"message": "❌ Unbekannte Pumpe."}
+    if not is_pump_enabled(pump_id):
         return {"message": "❌ Pumpe ist deaktiviert."}
     cmd = (command or "").lower()
     if cmd not in {"on", "off", "timer"}:
         return {"message": "❌ Unbekannter Pumpenbefehl."}
     if not mqtt:
         return {"message": "❌ MQTT-Client fehlt (paho-mqtt nicht installiert)."}
+    name = get_pump_name(pump_id)
+    runtime = _get_pump_runtime(pump_id)
     try:
         if cmd == "on":
-            _clear_pump_timer()
-            publish_pump_state("ON")
-            return {"message": "🚿 Pumpe eingeschaltet."}
+            _clear_pump_timer(pump_id)
+            publish_pump_state(pump_id, "ON")
+            with runtime["lock"]:
+                runtime["started_at"] = datetime.now()
+                runtime["origin"] = origin
+            send_telegram_notification(f"🚿 {name} eingeschaltet (manuell).")
+            return {"message": f"🚿 {name} eingeschaltet.", "device_name": name}
         if cmd == "off":
-            _clear_pump_timer()
-            publish_pump_state("OFF")
-            return {"message": "🛑 Pumpe ausgeschaltet."}
+            _clear_pump_timer(pump_id)
+            publish_pump_state(pump_id, "OFF")
+            _handle_pump_stopped(pump_id, stop_source="manual")
+            return {"message": f"🛑 {name} ausgeschaltet.", "device_name": name}
         minutes_val = None
         try:
             minutes_val = float(minutes)
@@ -2594,25 +3227,28 @@ def action_pump(command: str | None, minutes: Any = None) -> Dict[str, Any]:
             return {"message": "❌ Bitte eine gültige Minutenanzahl angeben."}
         if minutes_val <= 0:
             return {"message": "❌ Minuten müssen größer als 0 sein."}
-        _clear_pump_timer()
-        publish_pump_state("ON")
+        _clear_pump_timer(pump_id)
+        publish_pump_state(pump_id, "ON")
         delay = max(1, int(minutes_val * 60))
-        timer = threading.Timer(delay, _scheduled_pump_off)
+        timer = threading.Timer(delay, _scheduled_pump_off, args=(pump_id,))
         timer.daemon = True
-        with PUMP_TIMER_LOCK:
-            global PUMP_TIMER_THREAD, PUMP_TIMER_DEADLINE
-            PUMP_TIMER_THREAD = timer
-            PUMP_TIMER_DEADLINE = datetime.now() + timedelta(seconds=delay)
+        with runtime["lock"]:
+            runtime["timer_thread"] = timer
+            runtime["timer_deadline"] = datetime.now() + timedelta(seconds=delay)
+            runtime["started_at"] = datetime.now()
+            runtime["origin"] = origin
         timer.start()
+        send_telegram_notification(f"🚿 {name} gestartet für {minutes_val:g} Minuten (Auto-Off).")
         return {
-            "message": f"🚿 Pumpe für {minutes_val:g} Minuten gestartet (Auto-Off nach Ablauf)."
+            "message": f"🚿 {name} für {minutes_val:g} Minuten gestartet (Auto-Off nach Ablauf).",
+            "device_name": name,
         }
     except Exception as exc:
         return {"message": f"❌ MQTT-Fehler: {exc}"}
 
 
-def _pump_state_topics() -> List[str]:
-    return _device_state_topics(get_pump_topic())
+def _pump_state_topics(pump_id: str = "1") -> List[str]:
+    return _device_state_topics(get_pump_topic(pump_id))
 
 
 def _heater_state_topics() -> List[str]:
@@ -2741,34 +3377,30 @@ def mqtt_client() -> Any:
     return client
 
 
-def action_pump_state() -> Dict[str, Any]:
-    timer_info = _pump_timer_snapshot()
-    if not is_pump_enabled():
-        return {
-            "message": "Pumpe deaktiviert.",
-            "pump_state": None,
-            "power_w": None,
-            "timer_remaining_seconds": timer_info["remaining_seconds"],
-            "timer_until": timer_info["until"],
-        }
-    if pump_monitor and not pump_monitor.cache_matches_current_topic():
-        pump_monitor.invalidate_cache()
-    if pump_monitor and pump_monitor.last_state:
+def action_pump_state(pump_id: str = "1") -> Dict[str, Any]:
+    state_key = "pump_state" if pump_id == "1" else f"pump{pump_id}_state"
+    timer_info = _pump_timer_snapshot(pump_id)
+    name = get_pump_name(pump_id)
+    base = {
+        "timer_remaining_seconds": timer_info["remaining_seconds"],
+        "timer_until": timer_info["until"],
+        "device_name": name,
+    }
+    if not is_pump_enabled(pump_id):
+        return {"message": "Pumpe deaktiviert.", state_key: None, "state": None, "power_w": None, **base}
+    monitor = _get_pump_monitor(pump_id)
+    if monitor and not monitor.cache_matches_current_topic():
+        monitor.invalidate_cache()
+    if monitor and monitor.last_state:
         return {
             "message": "Pumpenstatus (Cache).",
-            "pump_state": pump_monitor.last_state,
-            "power_w": pump_monitor.last_power,
-            "timer_remaining_seconds": timer_info["remaining_seconds"],
-            "timer_until": timer_info["until"],
+            state_key: monitor.last_state,
+            "state": monitor.last_state,
+            "power_w": monitor.last_power,
+            **base,
         }
     if not mqtt:
-        return {
-            "message": "MQTT-Client fehlt.",
-            "pump_state": None,
-            "power_w": None,
-            "timer_remaining_seconds": timer_info["remaining_seconds"],
-            "timer_until": timer_info["until"],
-        }
+        return {"message": "MQTT-Client fehlt.", state_key: None, "state": None, "power_w": None, **base}
     state_holder: Dict[str, Any] = {"state": None, "power": None}
     event = threading.Event()
 
@@ -2785,7 +3417,7 @@ def action_pump_state() -> Dict[str, Any]:
     client.on_message = on_message
     mqtt_settings = get_mqtt_settings()
     client.connect(mqtt_settings["host"], mqtt_settings["port"], 60)
-    for topic in _pump_state_topics():
+    for topic in _pump_state_topics(pump_id):
         client.subscribe(topic, qos=0)
     client.loop_start()
     event.wait(timeout=2.0)
@@ -2793,10 +3425,10 @@ def action_pump_state() -> Dict[str, Any]:
     client.disconnect()
     return {
         "message": "Pumpenstatus abgefragt.",
-        "pump_state": state_holder.get("state"),
+        state_key: state_holder.get("state"),
+        "state": state_holder.get("state"),
         "power_w": state_holder.get("power"),
-        "timer_remaining_seconds": timer_info["remaining_seconds"],
-        "timer_until": timer_info["until"],
+        **base,
     }
 
 
@@ -3081,16 +3713,22 @@ def action_humidifier_state() -> Dict[str, Any]:
     return _generic_device_state(is_humidifier_enabled(), "Luftbefeuchter deaktiviert.", humidifier_monitor, "humidifier_state", _humidifier_state_topics)
 
 
-class WaterLeakGuard:
+class WaterSensorGuard:
+    """Subscribes to every enabled water sensor's MQTT topic on one shared
+    connection, dispatching messages to the matching sensor by topic. Replaces
+    the old single-sensor WaterLeakGuard."""
+
     def __init__(self) -> None:
         self.thread: threading.Thread | None = None
         self.reminder_thread: threading.Thread | None = None
-        self.last_state: str | None = None
+        self.last_states: Dict[str, str] = {}
+        self._topic_to_id: Dict[str, str] = {}
+        self._subscribed_set: set = set()
 
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
             return
-        self.thread = threading.Thread(target=self._run, name="water-leak-guard", daemon=True)
+        self.thread = threading.Thread(target=self._run, name="water-sensor-guard", daemon=True)
         self.thread.start()
         if not self.reminder_thread or not self.reminder_thread.is_alive():
             self.reminder_thread = threading.Thread(
@@ -3100,20 +3738,32 @@ class WaterLeakGuard:
             )
             self.reminder_thread.start()
 
+    def _expected_set(self) -> set:
+        return {
+            (sensor["id"], _sensor_topic(sensor["topic"]))
+            for sensor in get_water_sensors()
+            if sensor.get("enabled") and sensor.get("topic")
+        }
+
+    def _subscriptions_stale(self) -> bool:
+        return self._expected_set() != self._subscribed_set
+
     def _run(self) -> None:
         while True:
             try:
-                if not is_water_sensor_enabled():
-                    self.last_state = None
-                    time.sleep(5)
-                    continue
                 client = mqtt_client()
                 client.on_connect = self._on_connect  # type: ignore[attr-defined]
                 client.on_message = self._on_message  # type: ignore[attr-defined]
                 client.reconnect_delay_set(min_delay=1, max_delay=30)
                 mqtt_settings = get_mqtt_settings()
                 client.connect(mqtt_settings["host"], mqtt_settings["port"], 60)
-                client.loop_forever(retry_first_connection=True)
+                client.loop_start()
+                while True:
+                    time.sleep(5)
+                    if self._subscriptions_stale():
+                        client.disconnect()
+                        break
+                client.loop_stop()
             except Exception as exc:
                 print(f"[water-guard] MQTT Fehler: {exc}", flush=True)
                 time.sleep(5)
@@ -3122,21 +3772,23 @@ class WaterLeakGuard:
         if rc != 0:
             print(f"[water-guard] MQTT Connect-Fehler: {rc}", flush=True)
             return
-        if not is_water_sensor_enabled():
-            return
-        sensor_topic = get_water_sensor_topic()
-        for topic in _sensor_state_topics(sensor_topic):
-            client.subscribe(topic, qos=1)
-        print(f"[water-guard] Lausche auf {sensor_topic}", flush=True)
+        self._topic_to_id = {}
+        expected = self._expected_set()
+        self._subscribed_set = expected
+        for sensor_id, base_topic in expected:
+            for topic in _sensor_state_topics(base_topic):
+                client.subscribe(topic, qos=1)
+                self._topic_to_id[topic] = sensor_id
+        print(f"[water-guard] Lausche auf {len(expected)} Sensor(en)", flush=True)
 
     def _on_message(self, client: Any, _userdata: Any, msg: Any) -> None:
-        if not is_water_sensor_enabled():
-            self.last_state = None
+        sensor_id = self._topic_to_id.get(msg.topic)
+        if not sensor_id:
             return
         state = self._parse_state(msg)
         if state:
-            self.last_state = state
-            self._handle_reservoir_state(state)
+            self.last_states[sensor_id] = state
+            self._handle_reservoir_state(sensor_id, state)
 
     @staticmethod
     def _parse_state(msg: Any) -> str | None:
@@ -3153,56 +3805,54 @@ class WaterLeakGuard:
             val = msg.payload.decode("utf-8").strip() or None
         return _normalize_state(val)
 
-    def _handle_reservoir_state(self, state: str) -> None:
-        if not is_water_sensor_enabled():
-            return
+    def _handle_reservoir_state(self, sensor_id: str, state: str) -> None:
         data = load_data()
-        sensor_info = data.get("water_reservoir", {})
+        sensors = data.setdefault("water_sensors", [])
+        sensor_info = next((s for s in sensors if s.get("id") == sensor_id), None)
+        if sensor_info is None:
+            return
         now = datetime.now()
 
         if state == "OFF":
             dry_since = sensor_info.get("dry_since")
             if not dry_since:
-                sensor_info = {
-                    "state": "OFF",
-                    "dry_since": now.isoformat(),
-                    "first_alert_sent": True,
-                    "repeat_alert_sent": False,
-                }
-                data["water_reservoir"] = sensor_info
+                sensor_info["state"] = "OFF"
+                sensor_info["dry_since"] = now.isoformat()
+                sensor_info["first_alert_sent"] = True
+                sensor_info["repeat_alert_sent"] = False
                 save_data(data)
-                send_telegram_notification("🪫💧 Reservoir leer: Wassermelder zeigt trocken.")
-                print("[water-guard] Reservoir trocken erkannt.", flush=True)
+                if sensor_info.get("alerting_enabled", True):
+                    label = sensor_info.get("name") or sensor_id
+                    send_telegram_notification(f"🪫💧 Reservoir leer: Wassermelder '{label}' zeigt trocken.")
+                print(f"[water-guard] Sensor {sensor_id} trocken erkannt.", flush=True)
             else:
                 sensor_info["state"] = "OFF"
-                data["water_reservoir"] = sensor_info
                 save_data(data)
             return
 
-        sensor_info = {
-            "state": "ON",
-            "dry_since": None,
-            "first_alert_sent": False,
-            "repeat_alert_sent": False,
-            "wet_since": now.isoformat(),
-        }
-        data["water_reservoir"] = sensor_info
+        sensor_info["state"] = "ON"
+        sensor_info["dry_since"] = None
+        sensor_info["first_alert_sent"] = False
+        sensor_info["repeat_alert_sent"] = False
+        sensor_info["wet_since"] = now.isoformat()
         save_data(data)
-        print("[water-guard] Reservoir wieder OK.", flush=True)
+        print(f"[water-guard] Sensor {sensor_id} wieder OK.", flush=True)
 
     def _run_reminder_loop(self) -> None:
         while True:
             try:
-                if is_water_sensor_enabled():
-                    self._check_dry_reminder()
+                for sensor in get_water_sensors():
+                    if sensor.get("enabled") and sensor.get("alerting_enabled", True):
+                        self._check_dry_reminder(sensor["id"])
             except Exception as exc:
                 print(f"[water-guard] Reminder-Fehler: {exc}", flush=True)
             time.sleep(300)
 
-    def _check_dry_reminder(self) -> None:
+    def _check_dry_reminder(self, sensor_id: str) -> None:
         data = load_data()
-        sensor_info = data.get("water_reservoir", {})
-        if sensor_info.get("state") != "OFF":
+        sensors = data.setdefault("water_sensors", [])
+        sensor_info = next((s for s in sensors if s.get("id") == sensor_id), None)
+        if sensor_info is None or sensor_info.get("state") != "OFF":
             return
         dry_since_raw = sensor_info.get("dry_since")
         if not dry_since_raw:
@@ -3215,11 +3865,11 @@ class WaterLeakGuard:
             return
         elapsed = datetime.now() - dry_since
         if elapsed >= timedelta(hours=24):
-            send_telegram_notification("⏰💧 Reservoir seit 24h trocken. Bitte nachfüllen.")
+            label = sensor_info.get("name") or sensor_id
+            send_telegram_notification(f"⏰💧 Reservoir '{label}' seit 24h trocken. Bitte nachfüllen.")
             sensor_info["repeat_alert_sent"] = True
-            data["water_reservoir"] = sensor_info
             save_data(data)
-            print("[water-guard] 24h-Reservoir-Erinnerung gesendet.", flush=True)
+            print(f"[water-guard] 24h-Reservoir-Erinnerung gesendet ({sensor_id}).", flush=True)
 
 
 def _as_naive(dt: datetime) -> datetime:
@@ -3331,6 +3981,148 @@ class PlugStateMonitor:
         self.last_energy_month_kwh = None
         self.last_changed_at = None
         self.last_seen_at = None
+
+
+PUMP_MONITORS: Dict[str, PlugStateMonitor] = {}
+
+
+def _get_pump_monitor(pump_id: str) -> PlugStateMonitor | None:
+    if not mqtt:
+        return None
+    monitor = PUMP_MONITORS.get(pump_id)
+    if monitor is None:
+        monitor = PlugStateMonitor(lambda pid=pump_id: get_pump_topic(pid), f"pump{pump_id}")
+        PUMP_MONITORS[pump_id] = monitor
+        monitor.start()
+    return monitor
+
+
+class MqttPublisher:
+    """One persistent MQTT connection shared by every device command, replacing a
+    fresh connect/publish/disconnect cycle per call."""
+
+    def __init__(self) -> None:
+        self._client: Any = None
+        self._lock = threading.Lock()
+        self.thread: threading.Thread | None = None
+
+    def start(self) -> None:
+        if self.thread and self.thread.is_alive():
+            return
+        self.thread = threading.Thread(target=self._run, name="mqtt-publisher", daemon=True)
+        self.thread.start()
+
+    def _run(self) -> None:
+        while True:
+            try:
+                client = mqtt_client()
+                client.reconnect_delay_set(min_delay=1, max_delay=30)
+                mqtt_settings = get_mqtt_settings()
+                client.connect(mqtt_settings["host"], mqtt_settings["port"], 60)
+                with self._lock:
+                    self._client = client
+                client.loop_forever(retry_first_connection=True)
+            except Exception as exc:
+                print(f"[mqtt-publisher] {exc}", flush=True)
+            with self._lock:
+                self._client = None
+            time.sleep(5)
+
+    def publish(self, topic: str, payload: str, qos: int = 1, retain: bool = False) -> bool:
+        with self._lock:
+            client = self._client
+        if client is None:
+            return False
+        client.publish(topic, payload, qos=qos, retain=retain)
+        return True
+
+
+class WaterAutomationController:
+    """Opt-in per-pump automation: runs a pump's configured dosing (or active
+    preset) when its attached water sensor reads dry (state == 'OFF'), subject
+    to a per-pump cooldown. Mirrors the start()/_run()/_control_once() shape of
+    the other automation controllers, but is trigger-based rather than
+    continuous bang-bang control."""
+
+    def __init__(self) -> None:
+        self.thread: threading.Thread | None = None
+        self._last_log: str | None = None
+
+    def start(self) -> None:
+        if self.thread and self.thread.is_alive():
+            return
+        self.thread = threading.Thread(target=self._run, name="water-automation-controller", daemon=True)
+        self.thread.start()
+
+    def _run(self) -> None:
+        while True:
+            try:
+                interval = self._control_once()
+            except Exception as exc:
+                print(f"[water-automation] Fehler: {exc}\n{traceback.format_exc()}", flush=True)
+                interval = 30
+            time.sleep(max(15, int(interval)))
+
+    def _control_once(self) -> int:
+        for pump in get_pumps():
+            if not pump.get("enabled") or not pump.get("auto_water_enabled"):
+                continue
+            sensor_id = pump.get("sensor_id")
+            if not sensor_id:
+                continue
+            sensor = get_water_sensor(sensor_id)
+            if not sensor or not sensor.get("enabled"):
+                continue
+            state = water_guard.last_states.get(sensor_id) if water_guard else None
+            if state is None:
+                state = sensor.get("state")
+            if state != "OFF":
+                continue
+            runtime = _get_pump_runtime(pump["id"])
+            with runtime["lock"]:
+                already_running = runtime["started_at"] is not None
+            if already_running:
+                continue
+            last_run = pump.get("last_auto_water_at")
+            cooldown_minutes = max(1, int(pump.get("auto_water_cooldown_minutes", 360)))
+            if last_run:
+                try:
+                    elapsed_min = (datetime.now() - datetime.fromisoformat(last_run)).total_seconds() / 60.0
+                except ValueError:
+                    elapsed_min = cooldown_minutes + 1
+                if elapsed_min < cooldown_minutes:
+                    continue
+            minutes = self._resolve_minutes(pump)
+            if not minutes or minutes <= 0:
+                self._log_once(f"[water-automation] Pumpe {pump['id']}: keine gültige Dosierung konfiguriert.")
+                continue
+            action_pump(pump["id"], "timer", minutes=minutes, origin="auto_moisture")
+            self._mark_ran(pump["id"])
+            send_telegram_notification(
+                f"🤖💧 Auto-Bewässerung: {get_pump_name(pump['id'])} gestartet ({minutes:g} min, Sensor trocken)."
+            )
+        return 30
+
+    def _resolve_minutes(self, pump: Dict[str, Any]) -> float | None:
+        preset_id = pump.get("active_preset_id")
+        if preset_id:
+            preset = get_water_preset(preset_id)
+            if preset:
+                return _preset_to_minutes(preset, pump)
+        return _pump_dosing_minutes(pump)
+
+    def _mark_ran(self, pump_id: str) -> None:
+        data = load_data()
+        for p in data.get("pumps", []):
+            if p.get("id") == pump_id:
+                p["last_auto_water_at"] = datetime.now().isoformat()
+        save_data(data)
+
+    def _log_once(self, message: str) -> None:
+        if message == self._last_log:
+            return
+        self._last_log = message
+        print(message, flush=True)
 
 
 class HeaterController:
@@ -3978,6 +4770,8 @@ class HumidityController:
         self.last_live_reading: Dict[str, Any] | None = None
         self.last_reason: str | None = None
         self.last_change_reason: str | None = None
+        self.vpd_autopilot_active: bool = False
+        self.vpd_thresholds: Dict[str, float] | None = None
 
     def start(self) -> None:
         if self.thread and self.thread.is_alive():
@@ -4021,7 +4815,20 @@ class HumidityController:
         if humidity is None:
             return int(settings["control_interval_seconds"])
         now = datetime.now()
-        if humidity > settings["rh_upper_threshold"] and is_dehumidifier_enabled():
+
+        rh_upper_threshold = settings["rh_upper_threshold"]
+        rh_lower_threshold = settings["rh_lower_threshold"]
+        self.vpd_autopilot_active = False
+        self.vpd_thresholds = None
+        if settings["vpd_autopilot_enabled"]:
+            temperature = self.last_live_reading.get("temperature")
+            dynamic = self._vpd_dynamic_thresholds(float(temperature)) if temperature is not None else None
+            if dynamic:
+                rh_lower_threshold, rh_upper_threshold = dynamic
+                self.vpd_autopilot_active = True
+                self.vpd_thresholds = {"lower": rh_lower_threshold, "upper": rh_upper_threshold}
+
+        if humidity > rh_upper_threshold and is_dehumidifier_enabled():
             if hum_state == "ON":
                 if self._can_switch(self.humidifier_monitor, settings["min_on_seconds"], now):
                     publish_device_state(get_humidifier_topic(), "OFF")
@@ -4035,7 +4842,7 @@ class HumidityController:
                     send_telegram_notification(f"🟢 Dehumidifier on | RH {humidity:.1f}%")
             self.last_reason = "dehumidify"
             return int(settings["control_interval_seconds"])
-        if humidity < settings["rh_lower_threshold"] and is_humidifier_enabled():
+        if humidity < rh_lower_threshold and is_humidifier_enabled():
             if dehum_state == "ON":
                 if self._can_switch(self.dehumidifier_monitor, settings["min_on_seconds"], now):
                     publish_device_state(get_dehumidifier_topic(), "OFF")
@@ -4081,9 +4888,36 @@ class HumidityController:
             return True
         return (now - _as_naive(monitor.last_changed_at)).total_seconds() >= required_seconds
 
+    @staticmethod
+    def _vpd_dynamic_thresholds(temperature: float) -> tuple[float, float] | None:
+        """Compute RH thresholds that keep VPD in the grow-stage target band at the
+        given temperature — feeds the existing threshold-based control loop rather
+        than replacing it with a separate VPD control algorithm."""
+        data = load_data()
+        stats = get_week_and_phase(data.get("sprout_date"), data.get("flower_date"))
+        now = datetime.now()
+        flower_dt = parse_date(data.get("flower_date"))
+        flower_week = (now - flower_dt).days // 7 + 1 if flower_dt and now >= flower_dt else 1
+        target = determine_vpd_target(
+            {"phase": stats.get("phase"), "week_number": stats.get("week_number"), "flower_week": flower_week}
+        )
+        try:
+            es = 6.112 * math.exp((17.67 * temperature) / (temperature + 243.5))  # hPa, matches compute_vpd
+            rh_upper = (1 - (target["min"] * 10) / es) * 100
+            rh_lower = (1 - (target["max"] * 10) / es) * 100
+        except Exception:
+            return None
+        rh_upper = max(30.0, min(85.0, rh_upper))
+        rh_lower = max(30.0, min(85.0, rh_lower))
+        if rh_lower >= rh_upper:
+            return None
+        return round(rh_lower, 1), round(rh_upper, 1)
+
     def snapshot(self) -> Dict[str, Any]:
         settings = get_humidity_settings()
         current_rh = self.last_live_reading.get("humidity") if self.last_live_reading else None
+        rh_upper = self.vpd_thresholds["upper"] if self.vpd_autopilot_active and self.vpd_thresholds else settings["rh_upper_threshold"]
+        rh_lower = self.vpd_thresholds["lower"] if self.vpd_autopilot_active and self.vpd_thresholds else settings["rh_lower_threshold"]
         return {
             "enabled": settings["enabled"],
             "current_rh": current_rh,
@@ -4093,8 +4927,10 @@ class HumidityController:
             "humidifier_state": self._device_state(action_humidifier_state, "humidifier_state"),
             "last_reason": self.last_reason,
             "last_change_reason": self.last_change_reason,
-            "rh_upper_threshold": settings["rh_upper_threshold"],
-            "rh_lower_threshold": settings["rh_lower_threshold"],
+            "rh_upper_threshold": rh_upper,
+            "rh_lower_threshold": rh_lower,
+            "vpd_autopilot_enabled": settings["vpd_autopilot_enabled"],
+            "vpd_autopilot_active": self.vpd_autopilot_active,
         }
 
 
@@ -4192,11 +5028,35 @@ def currency_symbol(code: str | None = None) -> str:
     return {"EUR": "€", "USD": "$", "GBP": "£"}.get(selected, selected or "€")
 
 
+def get_pump_cards() -> List[Dict[str, Any]]:
+    cards = []
+    for pump in get_pumps():
+        if not pump.get("enabled") or not pump.get("topic"):
+            continue
+        cards.append({
+            "id": pump["id"],
+            "name": pump.get("name") or tr("pump_default_label").format(n=pump["id"]),
+            "tent_id": pump.get("tent_id"),
+            "sensor_id": pump.get("sensor_id"),
+            "auto_water_enabled": bool(pump.get("auto_water_enabled")),
+            "active_preset_id": pump.get("active_preset_id"),
+        })
+    return cards
+
+
 def get_power_devices() -> List[Dict[str, Any]]:
     settings = get_app_settings()
     price = get_power_settings()["price_per_kwh"]
-    device_defs = [
-        ("pump", "Pump", "🚰", "teal", settings["pump_enabled"], pump_monitor, _pump_state_topics),
+    device_defs = []
+    for pump in get_pumps():
+        if not pump.get("enabled"):
+            continue
+        pid = pump["id"]
+        device_defs.append((
+            pid, get_pump_name(pid), "🚰", "teal", True,
+            _get_pump_monitor(pid), (lambda pid=pid: _pump_state_topics(pid)),
+        ))
+    device_defs += [
         ("heater", "Heater", "🔥", "orange", settings["heater_enabled"], heater_monitor, _heater_state_topics),
         ("exhaust", "Exhaust", "🌬️", "cyan", settings["exhaust_enabled"], exhaust_monitor, lambda: _device_state_topics(get_exhaust_topic())),
         ("light", "Light", "💡", "gold", settings["light_enabled"], light_monitor, _light_state_topics),
@@ -4255,14 +5115,15 @@ def get_power_summary() -> Dict[str, Any]:
     }
 
 
-def action_water_sensor_state() -> Dict[str, Any]:
-    if not is_water_sensor_enabled():
+def action_water_sensor_state(sensor_id: str = "1") -> Dict[str, Any]:
+    if not is_water_sensor_enabled(sensor_id):
         return {"message": "Reservoir-Sensor deaktiviert.", "water_sensor_state": None}
-    if water_guard and water_guard.last_state:
-        return {"message": "Wassermelder-Status (Cache).", "water_sensor_state": water_guard.last_state}
+    if water_guard and water_guard.last_states.get(sensor_id):
+        return {"message": "Wassermelder-Status (Cache).", "water_sensor_state": water_guard.last_states.get(sensor_id)}
     persisted_state = None
     try:
-        persisted_state = load_data().get("water_reservoir", {}).get("state")
+        sensor = get_water_sensor(sensor_id)
+        persisted_state = sensor.get("state") if sensor else None
     except Exception:
         persisted_state = None
     if persisted_state in {"ON", "OFF"}:
@@ -4296,7 +5157,7 @@ def action_water_sensor_state() -> Dict[str, Any]:
     client.on_message = on_message
     mqtt_settings = get_mqtt_settings()
     client.connect(mqtt_settings["host"], mqtt_settings["port"], 60)
-    for topic in _sensor_state_topics(get_water_sensor_topic()):
+    for topic in _sensor_state_topics(get_water_sensor_topic(sensor_id)):
         client.subscribe(topic, qos=0)
     client.loop_start()
     event.wait(timeout=2.0)
@@ -4306,19 +5167,20 @@ def action_water_sensor_state() -> Dict[str, Any]:
     if resolved_state in {"ON", "OFF"}:
         try:
             data = load_data()
-            sensor_info = data.get("water_reservoir", {})
-            sensor_info["state"] = resolved_state
-            if resolved_state == "OFF" and not sensor_info.get("dry_since"):
-                sensor_info["dry_since"] = datetime.now().isoformat()
-                sensor_info["first_alert_sent"] = False
-                sensor_info["repeat_alert_sent"] = False
-            if resolved_state == "ON":
-                sensor_info["dry_since"] = None
-                sensor_info["first_alert_sent"] = False
-                sensor_info["repeat_alert_sent"] = False
-                sensor_info["wet_since"] = datetime.now().isoformat()
-            data["water_reservoir"] = sensor_info
-            save_data(data)
+            sensors = data.setdefault("water_sensors", [])
+            sensor_info = next((s for s in sensors if s.get("id") == sensor_id), None)
+            if sensor_info is not None:
+                sensor_info["state"] = resolved_state
+                if resolved_state == "OFF" and not sensor_info.get("dry_since"):
+                    sensor_info["dry_since"] = datetime.now().isoformat()
+                    sensor_info["first_alert_sent"] = False
+                    sensor_info["repeat_alert_sent"] = False
+                if resolved_state == "ON":
+                    sensor_info["dry_since"] = None
+                    sensor_info["first_alert_sent"] = False
+                    sensor_info["repeat_alert_sent"] = False
+                    sensor_info["wet_since"] = datetime.now().isoformat()
+                save_data(data)
         except Exception:
             pass
     return {
@@ -4387,6 +5249,23 @@ class WeeklySummaryThread:
         currency = power.get("currencySymbol", "€")
         cost_month = power["totals"]["costMonth"]
 
+        flower_dt = parse_date(data.get("flower_date"))
+        flower_week = None
+        if flower_dt and now >= flower_dt:
+            flower_week = (now - flower_dt).days // 7 + 1
+        vpd_target = determine_vpd_target(
+            {"phase": stats.get("phase"), "week_number": stats.get("week_number"), "flower_week": flower_week or 1}
+        )
+        avg_vpd = compute_vpd(sensor.get("temp_avg"), sensor.get("hum_avg"))
+
+        cutoff = (now - timedelta(days=7)).date()
+        weekly_entries = [
+            e for e in data.get("watering_log", [])
+            if e.get("date") and datetime.strptime(e["date"], "%Y-%m-%d").date() >= cutoff
+        ]
+        watering_count = len(weekly_entries)
+        watering_seconds = sum(e.get("duration_seconds") or 0 for e in weekly_entries)
+
         def fmt(v: Any) -> str:
             return f"{v:.1f}" if v is not None else "–"
 
@@ -4395,10 +5274,12 @@ class WeeklySummaryThread:
                 f"🌿 <b>PlantWatch Wochenbericht</b> — {now.strftime('%d.%m.%Y')}\n\n"
                 f"📅 <b>Phase:</b> {phase}, Woche {week_n}\n"
                 f"💧 <b>Letzte Bewässerung:</b> {water_str}\n"
+                f"🚿 <b>Bewässert diese Woche:</b> {watering_count}x, {_format_duration(watering_seconds)} gesamt\n"
                 f"📸 <b>Fotos gesamt:</b> {image_stats['count']}\n\n"
                 f"🌡️ <b>Klima (7 Tage)</b>\n"
                 f"  Temp: Ø {fmt(sensor.get('temp_avg'))}°C  (↓{fmt(sensor.get('temp_min'))} ↑{fmt(sensor.get('temp_max'))})\n"
-                f"  Feuchte: Ø {fmt(sensor.get('hum_avg'))}%  (↓{fmt(sensor.get('hum_min'))} ↑{fmt(sensor.get('hum_max'))})\n\n"
+                f"  Feuchte: Ø {fmt(sensor.get('hum_avg'))}%  (↓{fmt(sensor.get('hum_min'))} ↑{fmt(sensor.get('hum_max'))})\n"
+                f"  VPD: Ø {fmt(avg_vpd)} kPa (Ziel {vpd_target['min']}-{vpd_target['max']} kPa, {vpd_target['label']})\n\n"
                 f"⚡ <b>Strom diesen Monat:</b> {power['totals']['energyMonthKWh']} kWh ({currency}{cost_month})"
             )
         else:
@@ -4406,13 +5287,18 @@ class WeeklySummaryThread:
                 f"🌿 <b>PlantWatch Weekly Digest</b> — {now.strftime('%b %d, %Y')}\n\n"
                 f"📅 <b>Phase:</b> {phase}, Week {week_n}\n"
                 f"💧 <b>Last watered:</b> {water_str}\n"
+                f"🚿 <b>Watered this week:</b> {watering_count}x, {_format_duration(watering_seconds)} total\n"
                 f"📸 <b>Total photos:</b> {image_stats['count']}\n\n"
                 f"🌡️ <b>Climate (7 days)</b>\n"
                 f"  Temp: avg {fmt(sensor.get('temp_avg'))}°C  (↓{fmt(sensor.get('temp_min'))} ↑{fmt(sensor.get('temp_max'))})\n"
-                f"  Humidity: avg {fmt(sensor.get('hum_avg'))}%  (↓{fmt(sensor.get('hum_min'))} ↑{fmt(sensor.get('hum_max'))})\n\n"
+                f"  Humidity: avg {fmt(sensor.get('hum_avg'))}%  (↓{fmt(sensor.get('hum_min'))} ↑{fmt(sensor.get('hum_max'))})\n"
+                f"  VPD: avg {fmt(avg_vpd)} kPa (target {vpd_target['min']}-{vpd_target['max']} kPa, {vpd_target['label']})\n\n"
                 f"⚡ <b>Power this month:</b> {power['totals']['energyMonthKWh']} kWh ({currency}{cost_month})"
             )
         send_telegram_notification(msg)
+        photo = get_latest_timelapse_photo()
+        if photo and photo.get("path"):
+            send_telegram_photo(photo["path"])
 
 
 class ControllerWatchdog:
@@ -4485,18 +5371,41 @@ class ControllerWatchdog:
                             "🌡️ Sensordaten nicht mehr verfügbar — BLE-Sensor offline?"
                         )
 
+            # --- Timelapse capture health: alert if no new photo for too long ---
+            timelapse_settings = get_timelapse_settings()
+            if timelapse_settings.get("enabled"):
+                capture = get_latest_timelapse_capture()
+                if capture and capture.get("raw_timestamp"):
+                    try:
+                        captured_at = datetime.fromisoformat(capture["raw_timestamp"])
+                    except ValueError:
+                        captured_at = None
+                    if captured_at is not None:
+                        capture_age = (now - _as_naive(captured_at)).total_seconds()
+                        interval_seconds = max(timelapse_settings.get("interval_minutes", 5), 1) * 60
+                        if capture_age >= max(interval_seconds * 3, 900):
+                            if _should_alert("timelapse_stalled"):
+                                send_telegram_notification(
+                                    f"📸 Kein neues Foto seit {int(capture_age / 60)}min — Kamera-Capture prüfen?"
+                                )
 
-water_guard = WaterLeakGuard() if WATER_GUARD_ENABLED and mqtt else None
+
+_migration_data = load_data()
+if _migrate_legacy_pumps_and_sensors(_migration_data):
+    save_data(_migration_data)
+water_guard = WaterSensorGuard() if WATER_GUARD_ENABLED and mqtt else None
 if water_guard:
     water_guard.start()
-pump_monitor = PlugStateMonitor(get_pump_topic, "pump") if mqtt else None
+mqtt_publisher = MqttPublisher() if mqtt else None
+if mqtt_publisher:
+    mqtt_publisher.start()
+for _pump in get_pumps():
+    _get_pump_monitor(_pump["id"])
 heater_monitor = PlugStateMonitor(get_heater_topic, "heater") if mqtt else None
 exhaust_monitor = PlugStateMonitor(get_exhaust_topic, "exhaust") if mqtt else None
 light_monitor = PlugStateMonitor(get_light_topic, "light") if mqtt else None
 dehumidifier_monitor = PlugStateMonitor(get_dehumidifier_topic, "dehumidifier") if mqtt else None
 humidifier_monitor = PlugStateMonitor(get_humidifier_topic, "humidifier") if mqtt else None
-if pump_monitor:
-    pump_monitor.start()
 if heater_monitor:
     heater_monitor.start()
 if exhaust_monitor:
@@ -4519,9 +5428,19 @@ if light_controller:
 humidity_controller = HumidityController(dehumidifier_monitor, humidifier_monitor) if mqtt else None
 if humidity_controller:
     humidity_controller.start()
+water_automation_controller = WaterAutomationController() if mqtt else None
+if water_automation_controller:
+    water_automation_controller.start()
 controller_watchdog = ControllerWatchdog(
-    [heater_controller, exhaust_controller, light_controller, humidity_controller],
-    critical_monitors=[(heater_monitor, "Heizung"), (exhaust_monitor, "Abluft")],
+    [heater_controller, exhaust_controller, light_controller, humidity_controller, water_automation_controller],
+    critical_monitors=[
+        (heater_monitor, "Heizung"),
+        (exhaust_monitor, "Abluft"),
+        (light_monitor, "Licht"),
+        (dehumidifier_monitor, "Entfeuchter"),
+        (humidifier_monitor, "Luftbefeuchter"),
+        *[(_get_pump_monitor(p["id"]), get_pump_name(p["id"])) for p in get_pumps() if p.get("enabled")],
+    ],
 )
 controller_watchdog.start()
 weekly_summary = WeeklySummaryThread()
@@ -4547,9 +5466,15 @@ def perform_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     if action == "water":
         return action_water(payload.get("date"), payload.get("clear"))
     if action == "pump":
-        return action_pump(payload.get("command"), payload.get("minutes"))
+        return action_pump(str(payload.get("pump_id") or "1"), payload.get("command"), payload.get("minutes"))
     if action == "pump_state":
-        return action_pump_state()
+        return action_pump_state(str(payload.get("pump_id") or "1"))
+    if action == "pump2":
+        return action_pump("2", payload.get("command"), payload.get("minutes"))
+    if action == "pump2_state":
+        return action_pump_state("2")
+    if action == "pump_run_preset":
+        return action_pump_run_preset(str(payload.get("pump_id") or ""), str(payload.get("preset_id") or ""))
     if action in {"heater", "dehumidifier"}:
         return action_heater(payload.get("command"))
     if action in {"heater_state", "dehumidifier_state"}:
@@ -4571,7 +5496,7 @@ def perform_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
     if action == "exhaust_state":
         return action_exhaust_state()
     if action == "water_sensor_state":
-        return action_water_sensor_state()
+        return action_water_sensor_state(str(payload.get("sensor_id") or "1"))
     if action == "fert_defaults":
         data = load_data()
         liters = float(payload.get("liters", 10))
@@ -4586,6 +5511,46 @@ def perform_action(action: str, payload: Dict[str, Any]) -> Dict[str, Any]:
         return result
     if action == "fertilizer_delete":
         result = action_fertilizer_delete(payload.get("name"))
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "pump_save":
+        result = action_pump_save(payload)
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "pump_delete":
+        result = action_pump_delete(payload.get("id"))
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "water_sensor_save":
+        result = action_water_sensor_save(payload)
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "water_sensor_delete":
+        result = action_water_sensor_delete(payload.get("id"))
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "tent_save":
+        result = action_tent_save(payload)
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "tent_delete":
+        result = action_tent_delete(payload.get("id"))
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "water_preset_save":
+        result = action_water_preset_save(payload)
+        if result.get("error"):
+            return {"message": f"❌ {result['error']}"}
+        return result
+    if action == "water_preset_delete":
+        result = action_water_preset_delete(payload.get("id"))
         if result.get("error"):
             return {"message": f"❌ {result['error']}"}
         return result
@@ -4645,6 +5610,16 @@ def index():
     )
 
 
+@app.route("/sw.js")
+def service_worker():
+    # Served at the root path (not /static/sw.js) so its default scope covers the
+    # whole app, not just /static/ — a service worker's scope can't exceed its own
+    # directory unless the server also sends Service-Worker-Allowed.
+    response = send_file(os.path.join(app.static_folder, "sw.js"))
+    response.headers["Service-Worker-Allowed"] = "/"
+    return response
+
+
 @app.route("/fertilizer")
 def fertilizer_page():
     dash = compute_dashboard_data()
@@ -4695,11 +5670,47 @@ def fertilizer_page():
 @app.route("/watering")
 def watering_page():
     dash = compute_dashboard_data()
+    data = load_data()
+    watering_log = list(reversed(data.get("watering_log", [])))[:15]
+    for entry in watering_log:
+        entry["pump_name"] = get_pump_name(entry["pump_id"]) if entry.get("pump_id") else None
+        entry["duration_label"] = (
+            _format_duration(entry["duration_seconds"]) if entry.get("duration_seconds") is not None else None
+        )
+    pumps = get_pump_cards()
+    tents = get_tents()
+    grouped: Dict[str | None, List[Dict[str, Any]]] = {}
+    for p in pumps:
+        grouped.setdefault(p.get("tent_id"), []).append(p)
+    pump_groups = []
+    for tent in tents:
+        if tent["id"] in grouped:
+            pump_groups.append({"tent_name": tent["name"], "pumps": grouped.pop(tent["id"])})
+    if None in grouped:
+        pump_groups.append({"tent_name": None, "pumps": grouped.pop(None)})
     return render_template(
         "watering.html",
         dashboard=dash,
         active_page="watering",
         CHECK_INTERVAL_DAYS=CHECK_INTERVAL_DAYS,
+        pump_groups=pump_groups,
+        water_sensors=[s for s in get_water_sensors() if s.get("enabled")],
+        water_presets=get_water_presets(),
+        watering_log=watering_log,
+    )
+
+
+@app.route("/devices")
+def devices_page():
+    dash = compute_dashboard_data()
+    return render_template(
+        "devices.html",
+        dashboard=dash,
+        active_page="devices",
+        tents=get_tents(),
+        pumps=get_pumps(),
+        water_sensors=get_water_sensors(),
+        water_presets=get_water_presets(),
     )
 
 
@@ -4784,6 +5795,51 @@ def settings_page():
 @app.route("/api/dashboard")
 def api_dashboard():
     return jsonify(compute_dashboard_data())
+
+
+@app.route("/api/system-health")
+def api_system_health():
+    now = datetime.now()
+    items: List[Dict[str, Any]] = []
+    pump_health = [
+        (_get_pump_monitor(p["id"]), get_pump_name(p["id"]), f"pump{p['id']}")
+        for p in get_pumps() if p.get("enabled")
+    ]
+    for monitor, label, device_id in [
+        *pump_health,
+        (heater_monitor, "Heizung", "heater"),
+        (exhaust_monitor, "Abluft", "exhaust"),
+        (light_monitor, "Licht", "light"),
+        (dehumidifier_monitor, "Entfeuchter", "dehumidifier"),
+        (humidifier_monitor, "Luftbefeuchter", "humidifier"),
+    ]:
+        if monitor is None:
+            continue
+        items.append({"id": device_id, "label": label, "status": "ok" if monitor.is_connected else "error"})
+
+    if heater_controller and heater_controller.last_live_reading:
+        age = (now - _as_naive(heater_controller.last_live_reading["timestamp"])).total_seconds()
+        items.append({"id": "ble_sensor", "label": "Sensor", "status": "ok" if age < SENSOR_OFFLINE_ALERT_SECONDS else "error"})
+
+    ts = get_timelapse_settings()
+    if ts.get("enabled"):
+        capture = get_latest_timelapse_capture()
+        if capture and capture.get("raw_timestamp"):
+            try:
+                captured_at = datetime.fromisoformat(capture["raw_timestamp"])
+                age = (now - _as_naive(captured_at)).total_seconds()
+                threshold = max(ts.get("interval_minutes", 5) * 3, 15) * 60
+                items.append({"id": "camera", "label": "Kamera", "status": "ok" if age < threshold else "warning"})
+            except ValueError:
+                pass
+
+    if any(i["status"] == "error" for i in items):
+        overall = "error"
+    elif any(i["status"] == "warning" for i in items):
+        overall = "warning"
+    else:
+        overall = "ok"
+    return jsonify({"overall": overall, "items": items})
 
 
 @app.route("/api/fert-plan", methods=["POST"])
@@ -4932,5 +5988,9 @@ def download_timelapse():
 
 if __name__ == "__main__":
     debug_mode = os.getenv("GROWCAM_DEBUG", "false").lower() in ("1", "true", "yes")
-    # Disable reloader to avoid double-start under systemd
-    app.run(host="0.0.0.0", port=5050, debug=debug_mode, use_reloader=False)
+    if debug_mode:
+        # Disable reloader to avoid double-start under systemd
+        app.run(host="0.0.0.0", port=5050, debug=True, use_reloader=False)
+    else:
+        from waitress import serve
+        serve(app, host="0.0.0.0", port=5050)

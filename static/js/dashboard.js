@@ -11,6 +11,7 @@ const TXT = {
     vegetative: "Veg",
     openPlan: "Plan offen",
     synced: "Synchronisiert",
+    syncError: "Verbindung fehlgeschlagen",
     week: "Woche",
     noImage: "Kein Bild",
     temperature: "Temperatur °C",
@@ -26,6 +27,7 @@ const TXT = {
     vegetative: "Veg",
     openPlan: "Open plan",
     synced: "Synced",
+    syncError: "Connection failed",
     week: "Week",
     noImage: "No image",
     temperature: "Temperature °C",
@@ -328,6 +330,7 @@ function renderSensorChart(points) {
         ],
       },
       options: {
+        interaction: { mode: "index", intersect: false },
         plugins: { legend: { labels: { color: "#94a3b8" } } },
         scales: {
           x: { ticks: { color: "#94a3b8", maxRotation: 45, minRotation: 45 } },
@@ -402,6 +405,11 @@ async function loadDashboard() {
     const data = await fetchJSON("/api/dashboard");
     updateCards(data);
   } catch (err) {
+    const syncStatus = $("#syncStatus");
+    if (syncStatus) {
+      syncStatus.classList.add("error");
+      syncStatus.title = t("syncError");
+    }
     showToast(`${t("dashboardError")}: ${err.message}`, true);
   }
 }

@@ -1,0 +1,233 @@
+{% extends "base.html" %}
+{% block content %}
+      <header>
+        <div>
+          <h1><span class="heading-emoji">🧰</span>{{ tr('nav_devices') }}</h1>
+        </div>
+      </header>
+
+      <section class="grid fert-section">
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">🏕️</span>{{ tr('manage_tents') }}</h3>
+          </div>
+          <ul class="manage-list" id="tentCurrentList"></ul>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">➕</span>{{ tr('add_tent') }}</h3>
+          </div>
+          <form id="tentManageForm" class="fert-manage-form">
+            <input type="hidden" id="tentOriginalId" />
+            <div class="form-grid form-grid-2">
+              <div>
+                <label for="tentName">{{ tr('name') }}</label>
+                <input type="text" id="tentName" maxlength="40" />
+              </div>
+              <div>
+                <label for="tentNotes">{{ tr('notes') }}</label>
+                <input type="text" id="tentNotes" maxlength="200" />
+              </div>
+            </div>
+            <div class="btn-group">
+              <button type="submit" class="primary">{{ tr('save') }}</button>
+              <button type="button" class="ghost" id="tentResetForm">{{ tr('add_tent') }}</button>
+              <button type="button" class="ghost danger" id="tentDeleteBtn">{{ tr('delete') }}</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section class="grid fert-section">
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">🚰</span>{{ tr('manage_pumps') }}</h3>
+          </div>
+          <ul class="manage-list" id="pumpCurrentList"></ul>
+        </section>
+
+        <section class="card" id="pumpManageCard">
+          <div class="card-header">
+            <h3><span class="heading-emoji">➕</span>{{ tr('add_pump') }}</h3>
+          </div>
+          <form id="pumpManageForm" class="fert-manage-form">
+            <input type="hidden" id="pumpOriginalId" />
+            <div class="form-grid form-grid-2">
+              <div>
+                <label for="pumpName">{{ tr('name') }}</label>
+                <input type="text" id="pumpName" maxlength="40" />
+              </div>
+              <div>
+                <label for="pumpTopic">{{ tr('pump_topic') }}</label>
+                <input type="text" id="pumpTopic" maxlength="80" placeholder="pump" />
+              </div>
+            </div>
+            <label class="toggle" for="pumpEnabled">
+              <span>{{ tr('pump_enabled') }}</span>
+              <input type="checkbox" id="pumpEnabled" checked />
+            </label>
+            <div class="form-grid form-grid-2">
+              <div>
+                <label for="pumpTentId">{{ tr('tent_label') }}</label>
+                <select id="pumpTentId"></select>
+              </div>
+              <div>
+                <label for="pumpSensorId">{{ tr('attached_sensor_label') }}</label>
+                <select id="pumpSensorId"></select>
+              </div>
+            </div>
+
+            <div class="form-grid form-grid-2">
+              <label class="toggle" for="pumpDosingModeMinutes">
+                <span>{{ tr('preset_mode_minutes') }}</span>
+                <input type="radio" name="pumpDosingMode" id="pumpDosingModeMinutes" value="minutes" checked />
+              </label>
+              <label class="toggle" for="pumpDosingModeLiters">
+                <span>{{ tr('preset_mode_liters') }}</span>
+                <input type="radio" name="pumpDosingMode" id="pumpDosingModeLiters" value="liters" />
+              </label>
+            </div>
+            <div id="pumpDosingMinutesWrap">
+              <label for="pumpDosingMinutes">{{ tr('dosing_minutes_label') }}</label>
+              <input type="number" id="pumpDosingMinutes" min="0.1" step="any" value="2" />
+            </div>
+            <div id="pumpDosingLitersWrap" hidden>
+              <div class="form-grid form-grid-2">
+                <div>
+                  <label for="pumpDosingLiters">{{ tr('dosing_liters_label') }}</label>
+                  <input type="number" id="pumpDosingLiters" min="0.01" step="any" value="1" />
+                </div>
+                <div>
+                  <label for="pumpFlowRateValue">{{ tr('flow_rate_label') }}</label>
+                  <div class="btn-group">
+                    <input type="number" id="pumpFlowRateValue" min="0" step="any" value="0" />
+                    <select id="pumpFlowRateUnit">
+                      <option value="l_min">{{ tr('flow_rate_unit_l_min') }}</option>
+                      <option value="ml_min">{{ tr('flow_rate_unit_ml_min') }}</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <label class="toggle" for="pumpAutoWaterEnabled">
+              <span>{{ tr('auto_water_label') }}</span>
+              <input type="checkbox" id="pumpAutoWaterEnabled" />
+            </label>
+            <div class="form-grid form-grid-2">
+              <div>
+                <label for="pumpAutoWaterCooldown">{{ tr('auto_water_cooldown_label') }}</label>
+                <input type="number" id="pumpAutoWaterCooldown" min="1" step="1" value="360" />
+              </div>
+              <div>
+                <label for="pumpActivePresetId">{{ tr('choose_preset') }}</label>
+                <select id="pumpActivePresetId"></select>
+              </div>
+            </div>
+
+            <div class="btn-group">
+              <button type="submit" class="primary">{{ tr('save') }}</button>
+              <button type="button" class="ghost" id="pumpResetForm">{{ tr('add_pump') }}</button>
+              <button type="button" class="ghost danger" id="pumpDeleteBtn">{{ tr('delete') }}</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section class="grid fert-section">
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">🛟</span>{{ tr('manage_sensors') }}</h3>
+          </div>
+          <ul class="manage-list" id="sensorCurrentList"></ul>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">➕</span>{{ tr('add_sensor') }}</h3>
+          </div>
+          <form id="sensorManageForm" class="fert-manage-form">
+            <input type="hidden" id="sensorOriginalId" />
+            <div class="form-grid form-grid-2">
+              <div>
+                <label for="sensorName">{{ tr('name') }}</label>
+                <input type="text" id="sensorName" maxlength="40" />
+              </div>
+              <div>
+                <label for="sensorTopic">{{ tr('water_sensor_topic') }}</label>
+                <input type="text" id="sensorTopic" maxlength="80" />
+              </div>
+            </div>
+            <label class="toggle" for="sensorEnabled">
+              <span>{{ tr('water_sensor_enabled') }}</span>
+              <input type="checkbox" id="sensorEnabled" checked />
+            </label>
+            <div class="form-grid form-grid-2">
+              <div>
+                <label for="sensorTentId">{{ tr('tent_label') }}</label>
+                <select id="sensorTentId"></select>
+              </div>
+              <label class="toggle" for="sensorAlertingEnabled">
+                <span>{{ tr('alerting_enabled_label') }}</span>
+                <input type="checkbox" id="sensorAlertingEnabled" checked />
+              </label>
+            </div>
+            <div class="btn-group">
+              <button type="submit" class="primary">{{ tr('save') }}</button>
+              <button type="button" class="ghost" id="sensorResetForm">{{ tr('add_sensor') }}</button>
+              <button type="button" class="ghost danger" id="sensorDeleteBtn">{{ tr('delete') }}</button>
+            </div>
+          </form>
+        </section>
+      </section>
+
+      <section class="grid fert-section">
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">🧴</span>{{ tr('manage_presets') }}</h3>
+          </div>
+          <ul class="manage-list" id="presetCurrentList"></ul>
+        </section>
+
+        <section class="card">
+          <div class="card-header">
+            <h3><span class="heading-emoji">➕</span>{{ tr('add_preset') }}</h3>
+          </div>
+          <form id="presetManageForm" class="fert-manage-form">
+            <input type="hidden" id="presetOriginalId" />
+            <div class="form-grid form-grid-3">
+              <div>
+                <label for="presetName">{{ tr('name') }}</label>
+                <input type="text" id="presetName" maxlength="40" />
+              </div>
+              <div>
+                <label for="presetMode">{{ tr('dosing_mode_label') }}</label>
+                <select id="presetMode">
+                  <option value="minutes">{{ tr('preset_mode_minutes') }}</option>
+                  <option value="liters">{{ tr('preset_mode_liters') }}</option>
+                </select>
+              </div>
+              <div>
+                <label for="presetValue">{{ tr('current_dosage') }}</label>
+                <input type="number" id="presetValue" min="0.01" step="any" value="10" />
+              </div>
+            </div>
+            <div class="btn-group">
+              <button type="submit" class="primary">{{ tr('save') }}</button>
+              <button type="button" class="ghost" id="presetResetForm">{{ tr('add_preset') }}</button>
+              <button type="button" class="ghost danger" id="presetDeleteBtn">{{ tr('delete') }}</button>
+            </div>
+          </form>
+        </section>
+      </section>
+{% endblock %}
+{% block extra_scripts %}
+    <script>
+      window.TENTS = {{ tents|tojson }};
+      window.PUMPS = {{ pumps|tojson }};
+      window.WATER_SENSORS = {{ water_sensors|tojson }};
+      window.WATER_PRESETS = {{ water_presets|tojson }};
+    </script>
+    <script src="{{ static_url('js/devices.js') }}" defer></script>
+{% endblock %}

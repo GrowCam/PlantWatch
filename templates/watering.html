@@ -33,23 +33,26 @@
         </div>
       </section>
 
+      {% for group in pump_groups %}
+      {% if group.tent_name %}<h4 class="tent-heading">{{ group.tent_name }}</h4>{% endif %}
       <section class="grid watering-secondary-grid">
-        {% if ui_settings.pump_enabled %}
-        <div class="card pump-card">
-          <h3><span class="heading-emoji">🚰</span>{{ tr('control_pump') }}</h3>
-          <p class="power-readout" id="pumpPower">{{ tr('power_unknown') }}</p>
-          <small class="muted" id="pumpCountdown" hidden>–</small>
+        {% for pump in group.pumps %}
+        <div class="card pump-card" data-pump-id="{{ pump.id }}">
+          <h3><span class="heading-emoji">🚰</span>{{ pump.name }}</h3>
+          {% if pump.sensor_id %}<small class="muted" id="pumpSensorState{{ pump.id }}">–</small>{% endif %}
+          {% if pump.auto_water_enabled %}<span class="badge">{{ tr('auto_water_badge') }}</span>{% endif %}
+          <p class="power-readout" id="pumpPower{{ pump.id }}">{{ tr('power_unknown') }}</p>
+          <small class="muted" id="pumpCountdown{{ pump.id }}" hidden>–</small>
           <div class="device-switch-row">
             <span class="device-switch-indicator">O</span>
-            <input type="checkbox" id="pumpSwitch" class="device-switch-input" aria-label="{{ tr('control_pump') }}" />
+            <input type="checkbox" id="pumpSwitch{{ pump.id }}" class="device-switch-input" aria-label="{{ pump.name }}" />
             <span class="device-switch-indicator">I</span>
           </div>
-          <form id="pumpTimerForm">
-            <label for="pumpMinutes">{{ tr('runtime_minutes') }}</label>
+          <form id="pumpTimerForm{{ pump.id }}" data-pump-timer-form="{{ pump.id }}">
+            <label for="pumpMinutes{{ pump.id }}">{{ tr('runtime_minutes') }}</label>
             <input
               type="number"
-              id="pumpMinutes"
-              name="pumpMinutes"
+              id="pumpMinutes{{ pump.id }}"
               min="0.1"
               step="any"
               placeholder="{{ tr('example_two') }}"
@@ -57,20 +60,61 @@
             <button type="submit" class="primary">{{ tr('start_auto_off') }}</button>
             <small>{{ tr('pump_auto_off_copy') }}</small>
           </form>
+          {% if water_presets %}
+          <div class="preset-run-row">
+            <select id="pumpPresetSelect{{ pump.id }}">
+              <option value="">{{ tr('choose_preset') }}</option>
+              {% for preset in water_presets %}
+              <option value="{{ preset.id }}" {% if preset.id == pump.active_preset_id %}selected{% endif %}>{{ preset.name }}</option>
+              {% endfor %}
+            </select>
+            <button type="button" class="ghost" data-pump-run-preset="{{ pump.id }}">{{ tr('run_preset') }}</button>
+          </div>
+          {% endif %}
+          <div class="inline-actions">
+            <a class="ghost small" href="{{ url_for('devices_page') }}#pump-{{ pump.id }}">⚙ {{ tr('manage_pumps') }}</a>
+          </div>
         </div>
-        {% endif %}
-        {% if ui_settings.water_sensor_enabled %}
+        {% endfor %}
+      </section>
+      {% endfor %}
+
+      {% if water_sensors %}
+      <section class="grid watering-secondary-grid">
+        {% for sensor in water_sensors %}
         <div class="card reservoir-card">
-          <h3><span class="heading-emoji">🛟</span>{{ tr('reservoir_sensor') }}</h3>
+          <h3><span class="heading-emoji">🛟</span>{{ sensor.name or tr('reservoir_sensor') }}</h3>
           <div class="sensor-row">
             <div>
-              <span class="sensor-state" id="waterLeakState">{{ tr('status_unknown') }}</span>
+              <span class="sensor-state" id="waterLeakState{{ sensor.id }}" data-sensor-id="{{ sensor.id }}">{{ tr('status_unknown') }}</span>
             </div>
           </div>
         </div>
-        {% endif %}
+        {% endfor %}
+      </section>
+      {% endif %}
+
+      <section class="grid watering-secondary-grid">
+        <div class="card">
+          <h3><span class="heading-emoji">🗒️</span>{{ tr('watering_history') }}</h3>
+          {% if watering_log %}
+          <ul class="info-list compact-info-list">
+            {% for entry in watering_log %}
+            <li>
+              <span>{{ format_local_date(entry.date) }}{% if entry.pump_name %} · {{ entry.pump_name }}{% endif %}</span>
+              <span>
+                {% if entry.duration_label %}{{ entry.duration_label }} · {% endif %}
+                {{ tr('watering_source_' + entry.source) }}
+              </span>
+            </li>
+            {% endfor %}
+          </ul>
+          {% else %}
+          <p class="muted">{{ tr('watering_history_empty') }}</p>
+          {% endif %}
+        </div>
       </section>
 {% endblock %}
 {% block extra_scripts %}
-    <script src="{{ url_for('static', filename='js/watering.js') }}" defer></script>
+    <script src="{{ static_url('js/watering.js') }}" defer></script>
 {% endblock %}

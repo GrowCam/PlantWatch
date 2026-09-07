@@ -4,6 +4,8 @@ grow_data.json
 
 # Runtime data
 sensor_data.db
+backups/
+pi_backups/
 
 # Logs
 *.log
@@ -11,9 +13,10 @@ bot_log.txt
 cam_timelapse.log
 check_watering.log
 
-# Media (instance-specific)
-timelapse/
-images/
+# Media (instance-specific) — anchored to repo root so this doesn't also match
+# static/images/, which holds committed app assets (logo, PWA icons)
+/timelapse/
+/images/
 
 # Python
 .venv/
@@ -27,6 +30,7 @@ deploy.sh
 sync_pi.sh
 restart_pi_services.sh
 install_t3u.sh
+backup_from_pi.sh
 
 # Misc
 .DS_Store

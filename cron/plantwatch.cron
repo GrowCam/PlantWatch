@@ -3,3 +3,6 @@
 
 # Watering reminder check once daily at 16:45
 45 16 * * * __INSTALL_DIR__/.venv/bin/python __INSTALL_DIR__/check_watering.py >> __INSTALL_DIR__/check_watering.log 2>&1
+
+# Rotating backup of grow_data.json and sensor_data.db once daily at 03:00
+0 3 * * * __INSTALL_DIR__/.venv/bin/python __INSTALL_DIR__/backup_data.py >> __INSTALL_DIR__/backup_data.log 2>&1

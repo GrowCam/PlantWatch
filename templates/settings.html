@@ -10,6 +10,15 @@
       <form id="appSettingsForm" class="grid settings-card-grid">
         <details class="card debug-card" open>
           <summary class="debug-summary">
+            <h3><span class="heading-emoji">🩺</span>{{ tr('system_status') }}</h3>
+          </summary>
+          <ul class="info-list compact-info-list" id="systemStatusList">
+            <li><span>{{ tr('status_unknown') }}</span></li>
+          </ul>
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
             <h3><span class="heading-emoji">🖥️</span>{{ tr('settings_title') }}</h3>
           </summary>
           <label for="appLanguage">{{ tr('language') }}</label>
@@ -99,15 +108,7 @@
           <summary class="debug-summary">
             <h3><span class="heading-emoji">🔌</span>{{ tr('zigbee_settings') }}</h3>
           </summary>
-          <div class="device-topic-grid">
-            <label class="toggle" for="pumpEnabled"><span>{{ tr('pump_enabled') }}</span><input type="checkbox" id="pumpEnabled" {% if app_settings.pump_enabled %}checked{% endif %} /></label>
-            <label class="toggle" for="heaterEnabledSetting"><span>{{ tr('heater_enabled') }}</span><input type="checkbox" id="heaterEnabledSetting" {% if app_settings.heater_enabled %}checked{% endif %} /></label>
-            <label class="toggle" for="exhaustEnabledSetting"><span>{{ tr('exhaust_enabled') }}</span><input type="checkbox" id="exhaustEnabledSetting" {% if app_settings.exhaust_enabled %}checked{% endif %} /></label>
-            <label class="toggle" for="waterSensorEnabled"><span>{{ tr('water_sensor_enabled') }}</span><input type="checkbox" id="waterSensorEnabled" {% if app_settings.water_sensor_enabled %}checked{% endif %} /></label>
-            <label class="toggle" for="lightEnabled"><span>{{ tr('light_enabled') }}</span><input type="checkbox" id="lightEnabled" {% if app_settings.light_enabled %}checked{% endif %} /></label>
-            <label class="toggle" for="dehumidifierEnabled"><span>{{ tr('dehumidifier_enabled') }}</span><input type="checkbox" id="dehumidifierEnabled" {% if app_settings.dehumidifier_enabled %}checked{% endif %} /></label>
-            <label class="toggle" for="humidifierEnabled"><span>{{ tr('humidifier_enabled') }}</span><input type="checkbox" id="humidifierEnabled" {% if app_settings.humidifier_enabled %}checked{% endif %} /></label>
-          </div>
+          <small class="hint-text">{{ tr('zigbee_topic_hint') }}</small>
 
           <label for="mqttHost">{{ tr('mqtt_host') }}</label>
           <input type="text" id="mqttHost" value="{{ app_settings.mqtt_host }}" />
@@ -133,14 +134,6 @@
             <button type="button" class="ghost small secret-toggle" data-target="mqttPassword" data-show="{{ tr('show_secret') }}" data-hide="{{ tr('hide_secret') }}">{{ tr('show_secret') }}</button>
           </div>
 
-          <div class="device-topic-field" data-controlled-by="pumpEnabled"><label for="pumpTopic">{{ tr('pump_topic') }}</label><input type="text" id="pumpTopic" value="{{ app_settings.pump_topic }}" spellcheck="false" /></div>
-          <div class="device-topic-field" data-controlled-by="heaterEnabledSetting"><label for="heaterTopic">{{ tr('heater_topic') }}</label><input type="text" id="heaterTopic" value="{{ app_settings.heater_topic }}" spellcheck="false" /></div>
-          <div class="device-topic-field" data-controlled-by="exhaustEnabledSetting"><label for="exhaustTopic">{{ tr('exhaust_topic') }}</label><input type="text" id="exhaustTopic" value="{{ app_settings.exhaust_topic }}" spellcheck="false" /></div>
-          <div class="device-topic-field" data-controlled-by="lightEnabled"><label for="lightTopic">{{ tr('light_topic') }}</label><input type="text" id="lightTopic" value="{{ app_settings.light_topic }}" spellcheck="false" /></div>
-          <div class="device-topic-field" data-controlled-by="dehumidifierEnabled"><label for="dehumidifierTopic">{{ tr('dehumidifier_topic') }}</label><input type="text" id="dehumidifierTopic" value="{{ app_settings.dehumidifier_topic }}" spellcheck="false" /></div>
-          <div class="device-topic-field" data-controlled-by="humidifierEnabled"><label for="humidifierTopic">{{ tr('humidifier_topic') }}</label><input type="text" id="humidifierTopic" value="{{ app_settings.humidifier_topic }}" spellcheck="false" /></div>
-          <div class="device-topic-field" data-controlled-by="waterSensorEnabled"><label for="waterSensorTopic">{{ tr('water_sensor_topic') }}</label><input type="text" id="waterSensorTopic" value="{{ app_settings.water_sensor_topic }}" spellcheck="false" /></div>
-
           <small class="hint-text">{{ tr('mqtt_restart_hint') }}</small>
         </details>
 
@@ -160,14 +153,53 @@
           <input type="number" id="switchbotScanTimeout" min="3" max="60" value="{{ app_settings.switchbot_scan_timeout }}" />
         </details>
 
+        <div class="card">
+          <h3><span class="heading-emoji">🧰</span>{{ tr('devices_settings_moved_title') }}</h3>
+          <p>{{ tr('devices_settings_moved_copy') }} <a href="{{ url_for('devices_page') }}">{{ tr('nav_devices') }}</a>.</p>
+        </div>
+
         <details class="card debug-card" open>
           <summary class="debug-summary">
-            <h3><span class="heading-emoji">🕒</span>{{ tr('light_cycle_settings') }}</h3>
+            <h3><span class="heading-emoji">🔥</span>{{ tr('heater_card_title') }}</h3>
           </summary>
+          <label class="toggle" for="heaterEnabledSetting"><span>{{ tr('heater_enabled') }}</span><input type="checkbox" id="heaterEnabledSetting" {% if app_settings.heater_enabled %}checked{% endif %} /></label>
+          <div class="device-topic-field" data-controlled-by="heaterEnabledSetting"><label for="heaterTopic">{{ tr('heater_topic') }}</label><input type="text" id="heaterTopic" value="{{ app_settings.heater_topic }}" spellcheck="false" /></div>
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">🌬️</span>{{ tr('exhaust_card_title') }}</h3>
+          </summary>
+          <label class="toggle" for="exhaustEnabledSetting"><span>{{ tr('exhaust_enabled') }}</span><input type="checkbox" id="exhaustEnabledSetting" {% if app_settings.exhaust_enabled %}checked{% endif %} /></label>
+          <div class="device-topic-field" data-controlled-by="exhaustEnabledSetting"><label for="exhaustTopic">{{ tr('exhaust_topic') }}</label><input type="text" id="exhaustTopic" value="{{ app_settings.exhaust_topic }}" spellcheck="false" /></div>
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">💡</span>{{ tr('light_card_title') }}</h3>
+          </summary>
+          <label class="toggle" for="lightEnabled"><span>{{ tr('light_enabled') }}</span><input type="checkbox" id="lightEnabled" {% if app_settings.light_enabled %}checked{% endif %} /></label>
+          <div class="device-topic-field" data-controlled-by="lightEnabled"><label for="lightTopic">{{ tr('light_topic') }}</label><input type="text" id="lightTopic" value="{{ app_settings.light_topic }}" spellcheck="false" /></div>
           <label for="settingsLightStart">{{ tr('lights_on_start') }}</label>
           <input type="time" id="settingsLightStart" value="{{ light_cycle_settings.lights_on_start }}" />
           <label for="settingsLightEnd">{{ tr('lights_on_end') }}</label>
           <input type="time" id="settingsLightEnd" value="{{ light_cycle_settings.lights_on_end }}" />
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">💨</span>{{ tr('dehumidifier_card_title') }}</h3>
+          </summary>
+          <label class="toggle" for="dehumidifierEnabled"><span>{{ tr('dehumidifier_enabled') }}</span><input type="checkbox" id="dehumidifierEnabled" {% if app_settings.dehumidifier_enabled %}checked{% endif %} /></label>
+          <div class="device-topic-field" data-controlled-by="dehumidifierEnabled"><label for="dehumidifierTopic">{{ tr('dehumidifier_topic') }}</label><input type="text" id="dehumidifierTopic" value="{{ app_settings.dehumidifier_topic }}" spellcheck="false" /></div>
+        </details>
+
+        <details class="card debug-card" open>
+          <summary class="debug-summary">
+            <h3><span class="heading-emoji">💧</span>{{ tr('humidifier_card_title') }}</h3>
+          </summary>
+          <label class="toggle" for="humidifierEnabled"><span>{{ tr('humidifier_enabled') }}</span><input type="checkbox" id="humidifierEnabled" {% if app_settings.humidifier_enabled %}checked{% endif %} /></label>
+          <div class="device-topic-field" data-controlled-by="humidifierEnabled"><label for="humidifierTopic">{{ tr('humidifier_topic') }}</label><input type="text" id="humidifierTopic" value="{{ app_settings.humidifier_topic }}" spellcheck="false" /></div>
         </details>
 
         <details class="card debug-card" open>
@@ -216,7 +248,7 @@
         const accentPrimary = document.getElementById("accentPrimary");
         const accentSecondary = document.getElementById("accentSecondary");
         const toggles = [
-          "pumpEnabled","heaterEnabledSetting","exhaustEnabledSetting","waterSensorEnabled","lightEnabled","dehumidifierEnabled","humidifierEnabled"
+          "heaterEnabledSetting","exhaustEnabledSetting","lightEnabled","dehumidifierEnabled","humidifierEnabled"
         ].map((id) => document.getElementById(id));
         const accentPresets = {
           teal: { primary: "#14b8a6", secondary: "#6366f1" },
@@ -247,6 +279,34 @@
           toast.classList.add("show");
           setTimeout(() => toast.classList.remove("show"), 2500);
         };
+        const refreshSystemHealth = async () => {
+          const list = document.getElementById("systemStatusList");
+          if (!list) return;
+          try {
+            const res = await fetch("/api/system-health");
+            const data = await res.json();
+            const items = data.items || [];
+            if (!items.length) {
+              list.innerHTML = '<li><span>{{ tr("status_ok") }}</span></li>';
+              return;
+            }
+            list.innerHTML = items
+              .map((item) => {
+                const label =
+                  item.status === "error" ? "{{ tr('status_error') }}" :
+                  item.status === "warning" ? "{{ tr('status_warning') }}" :
+                  "{{ tr('status_ok') }}";
+                const dotClass = item.status === "ok" ? "" : item.status;
+                return `<li><span>${item.label}</span><span><span class="status-dot ${dotClass}" title="${label}">●</span></span></li>`;
+              })
+              .join("");
+          } catch (err) {
+            console.warn("System health fetch failed", err);
+          }
+        };
+        refreshSystemHealth();
+        setInterval(refreshSystemHealth, 60000);
+
         if (!form) return;
         const syncPresetSelect = () => {
           const primary = accentPrimary.value.toLowerCase();
@@ -389,20 +449,16 @@
                 mqtt_ws_path: document.getElementById("mqttWsPath").value,
                 mqtt_username: document.getElementById("mqttUsername").value,
                 mqtt_password: document.getElementById("mqttPassword").value,
-                pump_enabled: document.getElementById("pumpEnabled").checked,
                 heater_enabled: document.getElementById("heaterEnabledSetting").checked,
                 exhaust_enabled: document.getElementById("exhaustEnabledSetting").checked,
-                water_sensor_enabled: document.getElementById("waterSensorEnabled").checked,
                 light_enabled: document.getElementById("lightEnabled").checked,
                 dehumidifier_enabled: document.getElementById("dehumidifierEnabled").checked,
                 humidifier_enabled: document.getElementById("humidifierEnabled").checked,
-                pump_topic: document.getElementById("pumpTopic").value,
                 heater_topic: document.getElementById("heaterTopic").value,
                 exhaust_topic: document.getElementById("exhaustTopic").value,
                 light_topic: document.getElementById("lightTopic").value,
                 dehumidifier_topic: document.getElementById("dehumidifierTopic").value,
                 humidifier_topic: document.getElementById("humidifierTopic").value,
-                water_sensor_topic: document.getElementById("waterSensorTopic").value,
                 switchbot_mac: document.getElementById("switchbotMac").value,
                 switchbot_scan_timeout: document.getElementById("switchbotScanTimeout").value,
                 menu_order: Array.from(document.querySelectorAll("#menuConfigList [data-menu-item]")).map((row) => row.dataset.menuItem),
