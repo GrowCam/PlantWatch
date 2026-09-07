@@ -360,9 +360,14 @@
             child.matches(".card, details.card")
           );
           if (!window.Sortable || cards.length < 1) return;
+          // Isolated containers (e.g. per-tent card groups) keep drag-to-reorder
+          // within themselves but can't be dragged into a different container —
+          // otherwise a card ends up rendered under the wrong static heading.
+          const isIsolated = container.dataset.layoutIsolated === "true";
+          const groupName = isIsolated ? container.dataset.layoutContainerKey : `layout-group:${pagePath}`;
           sortables.push(
             Sortable.create(container, {
-              group: { name: `layout-group:${pagePath}`, pull: true, put: true },
+              group: { name: groupName, pull: true, put: true },
               draggable: ".card, details.card",
               handle: ".card-drag-handle",
               animation: 150,
